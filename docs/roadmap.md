@@ -47,8 +47,9 @@ Deliverables:
 
 - Client list.
 - Client detail.
-- Local folder path field.
+- Root-folder onboarding: discover per-client subfolders and fill each client's folder path automatically (editable after).
 - Active service configuration.
+- Get directory listings of 2-3 real client folders (input for the v0.6 scanner rules).
 
 Success:
 
@@ -87,21 +88,25 @@ Success:
 
 Dashboard and Priority show the same pending clients.
 
-## Version 0.6 - Documents
+## Version 0.6 - Documents And Proof Detection
 
 Goal:
 
-Link and search local client files.
+Link and search local client files, and detect saved proofs automatically.
 
 Deliverables:
 
 - Document records.
 - Folder/file path storage.
 - Search by client, file, year, financial year.
+- Folder scan on app open, plus a manual "Scan now" action.
+- Matching rules built from dad's real naming samples (collected in v0.3).
+- Detected proofs appear for one-click confirmation (confirm-first; no silent auto-done).
+- Visible provenance and one-click undo for every automatic change.
 
 Success:
 
-Dad can find common saved files faster than using Windows Explorer.
+Dad can find common saved files faster than using Windows Explorer, and confirms detected proofs instead of ticking tasks by hand.
 
 ## Version 0.7 - Real Dad Trial
 
@@ -117,7 +122,7 @@ Dad opens TaxDesk instead of Excel for compliance tracking.
 
 Only after real usage:
 
-- File indexing.
+- Deeper file indexing and content parsing (the MVP scanner matches names/paths only).
 - Document text extraction.
 - Better document search.
 - RAG with citations.
