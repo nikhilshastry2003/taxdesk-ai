@@ -59,4 +59,6 @@ The next engineering milestone is:
 Client + compliance task data model
 ```
 
-Before coding, decide the app stack and write the first schema/design note.
+The stack is decided: Python + FastAPI + SQLite (see `docs/decisions/001-tech-stack.md`).
+
+Before coding, write the schema/design note.
