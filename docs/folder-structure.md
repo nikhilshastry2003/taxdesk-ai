@@ -17,36 +17,31 @@ taxdesk-ai/
     roadmap.md
     folder-structure.md
     engineering-journal.md
+    engieering_guide.md
+    decisions/
+      001-tech-stack.md
 ```
 
 ## Future App Structure
 
-If we choose Next.js for implementation:
+Stack decided in `docs/decisions/001-tech-stack.md`: Python + FastAPI + SQLite.
+
+Draft layout (finalized in the v0.2 data model design note):
 
 ```text
 taxdesk-ai/
   app/
-    page.tsx
-    priority/
-    clients/
-    documents/
-    epf/
-    esi/
-  components/
-    dashboard/
-    priority/
-    clients/
-    documents/
-    ui/
-  lib/
-    compliance/
-    documents/
-    db.ts
-  prisma/
-    schema.prisma
-    seed.ts
-  docs/
+    main.py            # FastAPI entry point
+    routes/            # one module per page area
+    services/          # domain logic (task generation, pending counts)
+    db/
+      migrations/      # numbered SQL scripts
+      queries.py       # raw SQL access functions
+    templates/         # Jinja2 pages
+    static/            # css, minimal js
   tests/
+  docs/
+  pyproject.toml
 ```
 
 ## Folder Rules

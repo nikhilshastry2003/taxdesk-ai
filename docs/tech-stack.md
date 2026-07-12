@@ -2,46 +2,39 @@
 
 ## Current Decision
 
-The MVP should be local-first and simple.
+Decided in [docs/decisions/001-tech-stack.md](decisions/001-tech-stack.md) (2026-07-09):
 
-Recommended stack for the real app:
-
-- Next.js.
-- React.
-- TypeScript.
-- TailwindCSS.
-- shadcn/ui.
-- Prisma.
+- Python 3.
+- FastAPI.
 - SQLite.
+- Jinja2 server-rendered templates.
+- Raw SQL via the standard-library `sqlite3` module (no ORM initially).
+- Hand-written, numbered SQL migration scripts.
+
+Initial dependencies: `fastapi`, `uvicorn`, `jinja2`. Nothing else without the dependency justification from the engineering guide.
 
 ## Why This Stack
 
-### Next.js + React + TypeScript
+### Python + FastAPI
 
-Good for building a local browser-based app quickly while keeping UI code structured and typed.
+Every HTTP request and response is visible and explainable. No build step, no code generation.
 
-### TailwindCSS + shadcn/ui
+### SQLite + raw SQL
 
-Fast UI development with consistent components.
+SQLite is a single-file database: dad's office data lives in one local file with no server. Raw SQL keeps Nikhil directly in contact with queries, joins, and schema evolution - the fundamentals this project exists to teach.
 
-### Prisma + SQLite
+### Jinja2 templates
 
-SQLite is enough for one local office.
-
-Prisma gives a readable schema and type-safe database access.
+Plain server-rendered HTML keeps the UI layer boring and debuggable. Interactivity libraries (HTMX or similar) are a separate future dependency decision, only if a real workflow demands them.
 
 ### Local Browser App First
 
-Start with a localhost app before packaging.
-
-This avoids installer complexity while dad tests the workflow.
-
-### Tauri Later
-
-If the local browser app proves useful, package it as a desktop app with Tauri.
+Start with a localhost app before any packaging. This avoids installer complexity while dad tests the workflow.
 
 ## What Not To Add Yet
 
+- React / Next.js / any JS framework.
+- ORM or migration framework.
 - Supabase.
 - Clerk.
 - Stripe.
@@ -54,9 +47,7 @@ If the local browser app proves useful, package it as a desktop app with Tauri.
 
 ## Existing Repo Note
 
-The older Python file-indexer direction was removed from the repo in July 2026.
-
-The stack decision above is still the open choice to confirm before app code is written.
+The older Python file-indexer direction was removed from the repo in July 2026. This decision returns to Python, but for the compliance tracker - not the old indexer roadmap.
 
 Do not mix stacks accidentally.
 
