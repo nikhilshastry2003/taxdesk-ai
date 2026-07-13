@@ -136,3 +136,73 @@ Question to revisit:
 Next step:
 
 - Merge the design-note PR, then implement v0.2: migration 001, migration runner, seed data. Stdlib only.
+
+---
+
+## 2026-07-13
+
+What we built:
+
+- `app/db/migrations/001_initial_schema.sql` - our approved tables, written as real SQL.
+- `app/db/migrate.py` - a small program (~50 lines) that runs migration files. No libraries needed.
+- `.gitignore` + `*.db` - the database file stays on the computer, never goes to GitHub.
+
+### Q: What is a migration?
+
+A migration is a numbered SQL file. Each file makes one change to the database structure.
+
+We never change the database by hand. We add a new file instead. Any computer can then build the exact same database by running the files in order: 001, then 002, then 003...
+
+In TaxDesk: `001_initial_schema.sql` builds our 6 tables. The next change will be a new file (002). We never edit 001 again, because it has already run on real databases.
+
+Why we need this: `taxdesk.db` will hold dad's client data, so it stays on his computer. But the table structure must reach every computer. Migrations solve this: structure goes to GitHub as files, data stays local.
+
+### Q: What is the runner?
+
+The runner is `migrate.py`. Its job: run each migration file once, in the right order, and remember what it already ran.
+
+How it remembers: it writes the name of every finished file into a table called `schema_migrations`, inside the database itself. On every run it asks one question: "which files are new?" and runs only those.
+
+Why we wrote our own: tools like Prisma or Alembic do this for you, but they hide how it works. Ours is 50 lines, and we understand every line.
+
+### Q: What happens when we run it?
+
+1. It opens `taxdesk.db`. If the file does not exist, SQLite creates it.
+2. It turns on foreign key checking (SQLite keeps this off unless you ask).
+3. It reads the logbook: which files were already run?
+4. It runs the new files. After each one, it writes the name into the logbook and saves.
+5. Run it again: nothing is new, so it prints "nothing to apply". It is always safe to run.
+
+### Q: Why put rules inside the database instead of Python code?
+
+Because the database checks its rules on EVERY write, no matter which code is writing. A Python check can be skipped if someone forgets it in one place. The database never forgets.
+
+We proved it today with real inserts:
+
+- A task pointing to a client that does not exist -> rejected.
+- A status with wrong spelling ('Done') -> rejected.
+- The same task added twice -> rejected. So duplicate tasks can never happen, even if our code has a bug.
+
+What I learned:
+
+- Opening a SQLite database and creating it are the same act - connect() makes the file if it is missing.
+- `Path(__file__)` means "the folder where this script lives" - it makes the script work from any directory.
+- Passing a different database path as an argument lets us test on a throwaway file, never on real data.
+- Migration tools are not magic: a folder of files, a logbook table, and a "what is new?" check.
+
+Decision made:
+
+- Database files (`*.db`) never go to git: structure is committed, data is not.
+- Every part of the app must open the database through `connect()` - it is the one place that turns foreign keys on.
+
+Mistake or confusion:
+
+- The first draft of the migration was written from memory and had a wrong value ('auto_confirmed' instead of the approved 'scan_confirmed'). Caught by re-reading the design note. Lesson: always copy from the source of truth, never from memory.
+
+Question to revisit:
+
+- SQLite cannot change existing tables freely. Before migration 002, learn the rebuild trick: make a new table, copy the data over, drop the old one, rename.
+
+Next step:
+
+- Seed script: sample clients, services, the July 2026 period, and task generation running for real.
