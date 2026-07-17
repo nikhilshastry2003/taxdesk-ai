@@ -206,3 +206,33 @@ Question to revisit:
 Next step:
 
 - Seed script: sample clients, services, the July 2026 period, and task generation running for real.
+
+---
+
+## 2026-07-17
+
+What we did:
+
+- Added `docs/agents.md`, the standing rules for coding, style, docs, and chat.
+- Reviewed `migrate.py` and the schema against it, then refactored `migrate.py` to match. No schema changes.
+
+### Q. What changed in migrate.py
+
+- Every function now declares its types, what goes in and what comes out. A type annotation is a contract at the boundary. The tooling can check it and the next reader gets it for free.
+- Comments that repeated the code were deleted. The ones that stayed say only what the code cannot. They explain why the foreign key PRAGMA lives in connect() and why we record and commit right after executing a migration.
+- migrate() now returns early when nothing is pending. Edge cases exit at the top, the real work sits flat at the bottom.
+
+### Q. Why did the schema pass with no changes
+
+Two reasons. First, migration 001 has already run on databases, so it is frozen. Any real change would be a new file, 002. Second, the review found nothing broken. Two things were noted for later, not fixed now.
+
+- `updated_at` does not update itself. SQLite has no automatic mechanism for it, so the app must set it on every UPDATE.
+- There are no indexes yet. With hundreds of rows they are pointless, and adding them today would be building for an imagined future.
+
+Decision made:
+
+- In code, comments follow agents.md and say only what the code cannot. The teaching explanations live here in the journal instead of inside the code.
+
+Next step:
+
+- Seed script, waiting for go.
