@@ -58,6 +58,77 @@ def active_services(conn: Connection, client_id: int) -> set[str]:
     return {row["service_type"] for row in rows}
 
 
+def list_periods(conn: Connection) -> list[Row]:
+    return conn.execute(
+        "SELECT id, month, year, financial_year, status FROM compliance_periods"
+        " ORDER BY year DESC, month DESC",
+    ).fetchall()
+
+
+def get_period(conn: Connection, period_id: int) -> Row | None:
+    return conn.execute(
+        "SELECT id, month, year, financial_year, status FROM compliance_periods WHERE id = ?",
+        (period_id,),
+    ).fetchone()
+
+
+def create_period(conn: Connection, month: int, year: int, financial_year: str) -> int:
+    conn.execute(
+        "INSERT OR IGNORE INTO compliance_periods (month, year, financial_year)"
+        " VALUES (?, ?, ?)",
+        (month, year, financial_year),
+    )
+    row = conn.execute(
+        "SELECT id FROM compliance_periods WHERE month = ? AND year = ?",
+        (month, year),
+    ).fetchone()
+    return row["id"]
+
+
+def set_period_status(conn: Connection, period_id: int, status: str) -> None:
+    conn.execute(
+        "UPDATE compliance_periods SET status = ? WHERE id = ?",
+        (status, period_id),
+    )
+
+
+def tasks_for_period(conn: Connection, period_id: int) -> list[Row]:
+    return conn.execute(
+        "SELECT t.id, t.service_type, t.status, t.due_date, t.proof_status, c.name AS client_name"
+        " FROM compliance_tasks t JOIN clients c ON c.id = t.client_id"
+        " WHERE t.period_id = ?"
+        " ORDER BY t.service_type, c.name",
+        (period_id,),
+    ).fetchall()
+
+
+def get_task(conn: Connection, task_id: int) -> Row | None:
+    return conn.execute(
+        "SELECT id, client_id, period_id, service_type, status FROM compliance_tasks WHERE id = ?",
+        (task_id,),
+    ).fetchone()
+
+
+def set_task_status(conn: Connection, task_id: int, status: str) -> None:
+    # Done records when and how. Anything else clears both, so a task
+    # moved back to pending carries no stale completion trace.
+    if status == "done":
+        conn.execute(
+            "UPDATE compliance_tasks SET status = 'done',"
+            " completed_at = datetime('now'), completed_source = 'manual'"
+            " WHERE id = ?",
+            (task_id,),
+        )
+        return
+
+    conn.execute(
+        "UPDATE compliance_tasks SET status = ?,"
+        " completed_at = NULL, completed_source = NULL"
+        " WHERE id = ?",
+        (status, task_id),
+    )
+
+
 def set_service(conn: Connection, client_id: int, service_type: str, active: bool) -> None:
     # Unticking deactivates instead of deleting, so history survives
     # (design note 001, deactivation is not deletion).
