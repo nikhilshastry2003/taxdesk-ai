@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Clients</h2>
+
+{% if clients %}
+<table border="1" cellpadding="6">
+  <tr>
+    <th>Name</th>
+    <th>Folder</th>
+  </tr>
+  {% for client in clients %}
+  <tr>
+    <td><a href="/clients/{{ client['id'] }}">{{ client['name'] }}</a></td>
+    <td>{{ client['folder_path'] or '' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p>{{ clients | length }} client(s)</p>
+{% else %}
+<p>No clients yet. <a href="/onboarding">Run onboarding</a> to discover them from your folders.</p>
+{% endif %}
+{% endblock %}

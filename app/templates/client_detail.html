@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ client['name'] }}</h2>
+<p>Folder: {{ client['folder_path'] or 'not set' }}</p>
+
+<h3>Services</h3>
+<form method="post" action="/clients/{{ client['id'] }}/services">
+  {% for service in service_types %}
+  <p>
+    <label>
+      <input type="checkbox" name="services" value="{{ service }}"
+             {% if service in active %}checked{% endif %}>
+      {{ service_labels[service] }}
+    </label>
+  </p>
+  {% endfor %}
+  <button type="submit">Save services</button>
+</form>
+
+<p><a href="/clients">Back to clients</a></p>
+{% endblock %}

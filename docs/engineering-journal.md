@@ -249,3 +249,91 @@ Also cleared a doc debt. Both architecture files now match the approved schema, 
 Next step:
 
 - v0.3, first FastAPI pages and client onboarding, on the go signal.
+
+---
+
+## 2026-07-26
+
+What we built:
+
+v0.3 client management, the first web code. A FastAPI app with onboarding, a client list, client detail, and service configuration. Design note 002 approved first, then implemented.
+
+### Q. What is FastAPI and what runs it
+
+FastAPI receives a browser request, finds the function registered for that path, and turns the function's return value into a response. It cannot listen on a network port by itself. That job belongs to uvicorn, the server process that accepts connections and hands each request to FastAPI. They are the standard pairing.
+
+```bash
+venv/bin/uvicorn app.main:app --reload
+```
+
+### Q. What is a route
+
+One URL path mapped to one Python function. The app has seven.
+
+### Q. Where did we use GET and POST, and why each
+
+GET means read. It must never change data, so it is safe to refresh, bookmark, or repeat. POST means write. The browser itself treats them differently, it warns before resending a POST but repeats a GET silently, which is exactly why a write must never hide behind a GET.
+
+Our four GET routes, all pure reads:
+
+- `GET /` decides where to send you, onboarding when no root folder is saved yet, otherwise the client list
+- `GET /onboarding` shows the root folder form and the discovered subfolders
+- `GET /clients` shows the client list
+- `GET /clients/{id}` shows one client with its service checkboxes
+
+Our three POST routes, all writes:
+
+- `POST /onboarding/root` saves the root folder path into settings
+- `POST /onboarding/confirm` creates a client row for each ticked folder
+- `POST /clients/{id}/services` saves the service ticks for one client
+
+Every POST finishes with a redirect to a GET page, the post redirect get pattern. After a save the browser lands on a plain readable page, so refreshing rereads instead of resubmitting the form.
+
+### Q. Why are some route functions async
+
+Python has two kinds of functions here. A plain def blocks its thread until it finishes. An async def can pause at an await and let the server do other work while it waits.
+
+Our GET routes are plain def, FastAPI runs them in a thread pool automatically. The three POST routes are async def for one concrete reason, reading a submitted form is `await request.form()`, because the body arrives over the network in pieces and awaiting lets the server work while it completes.
+
+Rule of thumb we follow, async only where something is genuinely awaited, plain def everywhere else. No async for fashion.
+
+### Q. How do pages get their HTML
+
+Jinja2 templates. base.html holds the shared frame, each page fills in its content block. Every value dropped into a template is escaped automatically, so a client named `<script>` renders as harmless text instead of running. Injection is closed by default, not by our discipline.
+
+### Q. Where does SQL live
+
+In exactly one file, app/db/queries.py, as small typed functions. Routes call functions and never write SQL. Database code never sees HTTP. That one boundary is the main architecture lesson of this milestone, each layer can change without touching the other.
+
+### Q. What did the first test run catch
+
+Two real bugs, before any human ever clicked the app.
+
+- Form posts crashed. The installed starlette refuses to parse any form without the python-multipart library. My assumption that simple forms worked without it was wrong. It came in as a justified fourth pinned dependency, and the design note records the deviation.
+- Database calls crashed across threads. FastAPI runs plain def code in a thread pool and async code on its main loop, so a connection born on one thread got used on another. SQLite blocks that by default. The fix is the official FastAPI pattern, check_same_thread off, safe because a connection never leaves its one request.
+
+The lesson, a written test plan run honestly finds the bugs the author's assumptions hid.
+
+What I learned:
+
+- The onboarding confirm endpoint validates that submitted folder names really are subfolders of the root. Form input crosses a trust boundary even on localhost.
+- Unticking a service updates active to 0 and the row survives, verified by direct query. Deactivation is not deletion, now visible in real data.
+- Rerunning onboarding created zero duplicate clients, the same INSERT OR IGNORE idea that protects tasks.
+
+Decision made:
+
+- python-multipart joins the pinned dependencies, required by starlette for all form parsing.
+- Connections open with check_same_thread off, the documented FastAPI and SQLite pattern.
+
+Mistake or confusion:
+
+- Designed with three dependencies, reality needed four. The miss was found by running the test plan, not by a user, which is the system working.
+
+Question to revisit:
+
+- Dad pastes his root folder path as text for now. Whether he gets a real folder picker is a packaging time question.
+
+Next step:
+
+- Side task, dir listings of 2 or 3 real client folders from dad.
+- v0.4, period selector and monthly task generation.

@@ -18,8 +18,13 @@ DEFAULT_DB_PATH = Path(__file__).resolve().parents[2] / "taxdesk.db"
 def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     """The only sanctioned way to open the database. SQLite leaves foreign
     key enforcement off on every new connection, so all code must come
-    through here to get PRAGMA foreign_keys = ON."""
-    conn = sqlite3.connect(db_path)
+    through here to get PRAGMA foreign_keys = ON. Rows come back as
+    sqlite3.Row, readable by column name."""
+    # check_same_thread off because FastAPI may open a connection on one
+    # thread and use it on another within the same request. Safe as long
+    # as a connection stays inside one request or one script run.
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
