@@ -235,7 +235,7 @@ WHERE cs.active = 1;
 1. **Due-date rules per service.** GSTR-3B, GSTR-1, EPF, ESI each have standard monthly due dates dad knows cold. Confirm the day-of-month rule for each so generation can fill `due_date` automatically. (Not hardcoding my assumptions - dad is the source.)
 2. **Financial year format.** Proposed `'2026-27'`. Match whatever dad writes on folders.
 3. **Should `not_applicable` exist at generation time,** or only as a manual mark after? Proposed: only manual.
-4. **Real filenames (blocks Design Note 002 - the scanner).** No workflow interview needed - dad already keeps one folder per client under one root. What we still need: directory listings of 2-3 real client folders (a `dir /s` dump, ~10 minutes), because matching rules written before seeing real filenames are guesses. Likely luck: portal-downloaded files usually carry structured names (period, return type) - if dad keeps them unrenamed, matching gets very reliable. Verify from the listings.
+4. **Real filenames (blocks the scanner design note).** No workflow interview needed - dad already keeps one folder per client under one root. What we still need: directory listings of 2-3 real client folders (a `dir /s` dump, ~10 minutes), because matching rules written before seeing real filenames are guesses. Likely luck: portal-downloaded files usually carry structured names (period, return type) - if dad keeps them unrenamed, matching gets very reliable. Verify from the listings.
 
 ## Expected Files When Implemented (after review)
 
