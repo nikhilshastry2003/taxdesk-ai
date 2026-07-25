@@ -258,6 +258,30 @@ What we built:
 
 v0.3 client management, the first web code. A FastAPI app with onboarding, a client list, client detail, and service configuration. Design note 002 approved first, then implemented.
 
+### Q. What is each new file for
+
+```text
+pyproject.toml                  project identity plus the 4 pinned dependencies
+app/main.py                     builds the FastAPI app, runs migrations at startup, plugs in the routes
+app/deps.py                     shared pieces, the template engine and the per request db connection
+app/db/queries.py               every SQL statement the web app runs, as typed functions
+app/routes/onboarding.py        root folder form, discovery, confirm
+app/routes/clients.py           client list, client detail, service saving
+app/templates/base.html         the shared page frame every page extends
+app/templates/onboarding.html   the onboarding page
+app/templates/clients.html      the client list page
+app/templates/client_detail.html one client with its service checkboxes
+app/__init__.py                 empty, see below
+app/db/__init__.py              empty, see below
+app/routes/__init__.py          empty, see below
+```
+
+### Q. Why do the empty __init__.py files exist
+
+They turn a plain folder into a Python package, which is what makes dotted imports work. `from app.db import queries` only resolves because `app/` and `app/db/` each contain an `__init__.py`. Without them Python does not treat the folders as importable code.
+
+They are empty because marking the folder is their entire job. Code inside them runs on import, which is a place bugs love to hide, so the convention is to keep them empty unless there is a strong reason not to.
+
 ### Q. What is FastAPI and what runs it
 
 FastAPI receives a browser request, finds the function registered for that path, and turns the function's return value into a response. It cannot listen on a network port by itself. That job belongs to uvicorn, the server process that accepts connections and hands each request to FastAPI. They are the standard pairing.
