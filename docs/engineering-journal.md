@@ -233,6 +233,19 @@ Decision made:
 
 - In code, comments follow agents.md and say only what the code cannot. The teaching explanations live here in the journal instead of inside the code.
 
+### Q. What is seed data
+
+A script that fills the development database with fake clients, `app/db/seed.py`. Pages can then be built against realistic rows instead of empty tables. It runs only on the developer laptop, by hand. The office machine starts empty and fills through onboarding, it never runs seed.
+
+### Q. What did seeding prove
+
+- Six fake clients with mixed services produced 13 tasks from one INSERT OR IGNORE SELECT, the exact query the app will use for monthly generation in v0.4.
+- The whole script ran twice and gave identical counts, 12 pending. The UNIQUE constraint blocked the duplicates, not Python code.
+- The Dashboard count query returned 3 pending per service, real numbers from real rows, before any UI exists. The data model answers its core question.
+- One task marked done and one proof marked detected, so every screen state already has data waiting for v0.3.
+
+Also cleared a doc debt. Both architecture files now match the approved schema, task_label removed, settings table added, a promise from design note 001 that had slipped.
+
 Next step:
 
-- Seed script, waiting for go.
+- v0.3, first FastAPI pages and client onboarding, on the go signal.
