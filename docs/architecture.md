@@ -117,12 +117,12 @@ id
 client_id
 period_id
 service_type      # GSTR_3B, GSTR_1, EPF, ESI
-task_label
 status            # pending, done, not_applicable
 due_date
-proof_status      # missing, linked, not_required
+proof_status      # missing, detected, linked, not_required
 proof_file_path
 completed_at
+completed_source  # manual, scan_confirmed
 notes
 ```
 
@@ -140,6 +140,13 @@ year
 financial_year
 notes
 created_at
+```
+
+### settings
+
+```text
+key               # e.g. root_folder
+value
 ```
 
 ## MVP Screens
