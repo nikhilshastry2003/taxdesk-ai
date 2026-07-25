@@ -9,3 +9,13 @@ dependencies = [
     "python-multipart==0.0.32",
     "uvicorn==0.51.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+]
+
+[tool.pytest.ini_options]
+# Repo root on sys.path so tests can import the app package.
+pythonpath = ["."]
+testpaths = ["tests"]

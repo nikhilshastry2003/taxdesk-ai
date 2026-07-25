@@ -361,3 +361,69 @@ Next step:
 
 - Side task, dir listings of 2 or 3 real client folders from dad.
 - v0.4, period selector and monthly task generation.
+
+---
+
+## 2026-07-26, second entry
+
+What we built:
+
+v0.4 task generation, the milestone that functionally replaces the Excel sheet. Periods page, create a month with its financial year computed, generate tasks, mark them done or not applicable, close a finished month. Plus the project's first automated tests.
+
+### Q. What is new in the file map
+
+```text
+app/services/generation.py   generation and financial year logic, no HTTP in it
+app/routes/periods.py        period pages, generate, close, task status
+app/templates/periods.html and period_detail.html
+tests/conftest.py            shared test fixtures
+tests/test_generation.py     7 generation tests
+tests/test_task_status.py    3 status tests
+```
+
+### Q. Why does app/services exist now, and what is a pure logic layer
+
+Generation logic could have lived inside the route function. It did not, because logic buried in a route can only be tested by faking a whole web request. In its own module with plain functions over a database connection, a test imports it and calls it directly. Routes stay thin, they parse the request, call the service, redirect. This is the layering idea again, web code, logic, SQL, each in its own file.
+
+### Q. What is pytest and what is a fixture
+
+pytest finds every function named `test_*` and runs it, a failed assert means a failed test. A fixture is a named piece of setup a test asks for by parameter name. Our `conn` fixture builds a fresh database in a temp folder and runs migrations on it, so every single test starts from a clean, real schema and the actual taxdesk.db is never touched.
+
+```bash
+venv/bin/pytest -q      # 11 passed in 0.64s
+```
+
+### Q. How are due dates handled when dad has not answered yet
+
+A placeholder, exactly as decided. One mapping in code, `DUE_DAY_RULES`, every service None today. Generation fills a due date only where a rule exists, so all dates are empty for now, shown as a quiet dash. One test proves the future too, it sets a rule the way dad's answer will, regenerates, and watches only that service's dates backfill. The mechanism is live, only the numbers are missing.
+
+### Q. How is the financial year computed
+
+April to March. Month 4 or later belongs to the year that starts then, month 1 to 3 belongs to the year before. July 2026 gives 2026-27, February 2026 gives 2025-26. Computed from month and year, never typed, never stored wrong.
+
+### Q. What does closing a period do
+
+Sets its status to closed, and every write route checks it first. Generation and status changes against a closed month bounce back with a visible message instead of writing. History gets frozen on purpose, reopen exists for genuine corrections.
+
+What I learned:
+
+- rowcount after INSERT OR IGNORE counts only rows actually inserted, which is how generate can report 13 new, then 0 new.
+- monkeypatch in a test can simulate a future configuration without editing the code, which is how the due date backfill is already proven.
+- A test suite plus a manual click through catch different things, the suite locks logic, the click through catches wiring, templates, and redirects.
+
+Decision made:
+
+- pytest 9.1.1 pinned as the first dev only dependency, tests run on temp databases through the conftest fixture.
+- Due dates stay NULL until dad's rules land, backfill is one edit per service plus one generate click.
+
+Mistake or confusion:
+
+- None new this milestone. The v0.3 lessons, test before shipping and copy from the source of truth, were simply applied.
+
+Question to revisit:
+
+- The following month assumption inside due date computation must be confirmed with dad along with the day numbers.
+
+Next step:
+
+- v0.5, Dashboard and Priority, both reading the same pending tasks these pages now create.

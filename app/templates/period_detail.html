@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Period {{ period['month'] }} / {{ period['year'] }} ({{ period['financial_year'] }})</h2>
+<p>Status: {{ period['status'] }}</p>
+
+{% if error == 'closed' %}
+<p><strong>This period is closed. Reopen it to make changes.</strong></p>
+{% elif error %}
+<p><strong>That change was not allowed.</strong></p>
+{% endif %}
+
+<form method="post" action="/periods/{{ period['id'] }}/generate" style="display:inline">
+  <button type="submit">Generate tasks</button>
+</form>
+<form method="post" action="/periods/{{ period['id'] }}/toggle-close" style="display:inline">
+  <button type="submit">{% if period['status'] == 'open' %}Close period{% else %}Reopen period{% endif %}</button>
+</form>
+
+{% if task_count == 0 %}
+<p>No tasks yet. Generate them, or check that clients have active services.</p>
+{% endif %}
+
+{% for service, tasks in grouped.items() %}
+  {% if tasks %}
+  <h3>{{ service_labels[service] }}</h3>
+  <table border="1" cellpadding="6">
+    <tr>
+      <th>Client</th>
+      <th>Status</th>
+      <th>Due</th>
+      <th>Proof</th>
+      <th>Actions</th>
+    </tr>
+    {% for task in tasks %}
+    <tr>
+      <td>{{ task['client_name'] }}</td>
+      <td>{{ task['status'] }}</td>
+      <td>{{ task['due_date'] or '-' }}</td>
+      <td>{{ task['proof_status'] }}</td>
+      <td>
+        {% if task['status'] == 'pending' %}
+        <form method="post" action="/tasks/{{ task['id'] }}/status" style="display:inline">
+          <input type="hidden" name="status" value="done">
+          <button type="submit">Mark done</button>
+        </form>
+        <form method="post" action="/tasks/{{ task['id'] }}/status" style="display:inline">
+          <input type="hidden" name="status" value="not_applicable">
+          <button type="submit">Not applicable</button>
+        </form>
+        {% else %}
+        <form method="post" action="/tasks/{{ task['id'] }}/status" style="display:inline">
+          <input type="hidden" name="status" value="pending">
+          <button type="submit">Back to pending</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+{% endfor %}
+
+<p><a href="/periods">Back to periods</a></p>
+{% endblock %}
