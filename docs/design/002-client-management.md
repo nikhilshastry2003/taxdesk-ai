@@ -54,8 +54,9 @@ Per the engineering guide, each one justified.
 1. **fastapi.** Routing, request parsing, form handling. The alternative is the standard library's http.server, which means hand writing routing, form decoding, and error handling, roughly its own project. FastAPI is the mainstream Python choice with a huge community and it matches ADR 001.
 2. **uvicorn.** FastAPI is only the application layer, it cannot listen on a port. Uvicorn is the server that runs it. They are the standard pairing.
 3. **jinja2.** HTML pages with variables and loops. The alternative is building HTML by string concatenation, which is unreadable and unsafe. Jinja2 escapes values automatically, which closes the script injection hole by default.
+4. **python-multipart.** Added during implementation, not in the original draft. The installed starlette version refuses to parse ANY form post without it, discovered by the failing test run. It is the standard FastAPI form companion, small and pure Python.
 
-All three get pinned versions in a new pyproject.toml. Nothing else comes in.
+All four get pinned versions in a new pyproject.toml. Nothing else comes in.
 
 ## Files
 
