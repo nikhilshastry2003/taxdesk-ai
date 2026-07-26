@@ -48,7 +48,6 @@ Start here:
 - `docs/folder-structure.md`
 - `docs/engineering-journal.md`
 - `docs/engieering_guide.md`
-- `docs/code-map.md`
 
 ## Next Milestone
 
