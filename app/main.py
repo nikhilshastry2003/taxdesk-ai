@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from app.db.migrate import connect, migrate
 from app.deps import db_path
 from app.routes.clients import router as clients_router
+from app.routes.dashboard import router as dashboard_router
 from app.routes.onboarding import router as onboarding_router
 from app.routes.periods import router as periods_router
 
@@ -33,3 +34,4 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(onboarding_router)
 app.include_router(clients_router)
 app.include_router(periods_router)
+app.include_router(dashboard_router)

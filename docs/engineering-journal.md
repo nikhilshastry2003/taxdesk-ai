@@ -427,3 +427,50 @@ Question to revisit:
 Next step:
 
 - v0.5, Dashboard and Priority, both reading the same pending tasks these pages now create.
+
+---
+
+## 2026-07-26, third entry
+
+What we built:
+
+v0.5, the Dashboard and Priority pages. Opening TaxDesk now lands on the glance page, four pending counts, a total, and the clients that still owe work. Priority shows the same rows as a searchable working list, and filtered to one service it doubles as the EPF or ESI page.
+
+### Q. How can two pages be guaranteed to agree
+
+They run the same query functions with the same conditions. The Dashboard counts rows that Priority lists, nothing is stored, nothing can drift. And it is no longer a promise, one pytest test computes the counts, lists the rows per service, and asserts they are equal. A future change that breaks the mirror breaks the build.
+
+### Q. What is a query parameter and how do we use it
+
+The part of a URL after the question mark, `/priority?service=EPF&q=kumar`. The page reads them as filters, period, service, search text. That is how one template serves five views, full Priority, four service pages, with zero JavaScript. Anything invalid in them is ignored and the page falls back to sane defaults.
+
+### Q. How does search work without JavaScript
+
+A plain GET form. The browser puts the text into the URL as `q=...`, the route passes it into SQL as `name LIKE ?` with the text parameterized, never spliced into the string. LIKE with COLLATE NOCASE matches fragments ignoring case, so "kumar" finds "Kumar Textiles".
+
+### Q. What changed in how functions are written
+
+Every function now carries a docstring a first time reviewer can follow, what it exactly does, then an In line and an Out line in plain words. Settled today after a few rounds, the bar is, someone opening the file cold understands the ins and outs without another file open.
+
+What I learned:
+
+- A product requirement can live as a test. "Priority must exactly mirror Dashboard" is now code that fails loudly, which is stronger than any promise in a document.
+- Computing counts at read time is what made this milestone almost free, two pages and zero migrations, because the data model carried the weight.
+- 18 tests now run in about a second, fast enough to run after every change without thinking.
+
+Decision made:
+
+- Dedicated EPF and ESI pages are Priority filtered by service, one template, four views, nothing extra to maintain.
+- Dashboard stays read only by rule, marking done happens on the period page.
+
+Mistake or confusion:
+
+- None new in the code. The docstring style took three attempts to land because I kept guessing the depth instead of asking for an example of what Nikhil wanted to read.
+
+Question to revisit:
+
+- Whether the Dashboard should someday show due date urgency, colors for near deadlines, once real due days exist.
+
+Next step:
+
+- v0.6, Documents and the proof scanner, the beat Excel moment. Needs dad's folder listings at install time.
