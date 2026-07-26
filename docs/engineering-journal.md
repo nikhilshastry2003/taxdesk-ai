@@ -4,6 +4,8 @@ Use this file to record what was learned while building TaxDesk.
 
 The goal is not just to finish the product. The goal is to become a better engineer while building it.
 
+How to read this journal: the dated entries are the story in order, each teaching the fundamentals of what was built that day. The Code Map at the very bottom is the reference, one section per file, what it is, what it calls, who calls it.
+
 ## Entry Template
 
 ```text
