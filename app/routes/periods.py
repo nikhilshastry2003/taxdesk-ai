@@ -20,6 +20,11 @@ def period_list(
     request: Request,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Show the periods page, every tracked month plus the create form.
+
+    In: optional ?error=... in the URL from a rejected create.
+    Out: the rendered periods list.
+    """
     return templates.TemplateResponse(
         request,
         "periods.html",
@@ -35,6 +40,13 @@ async def create_period(
     request: Request,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Create a period from the submitted month and year, computing the
+    financial year, or reuse the existing one for that month.
+
+    In: the submitted form with month and year numbers.
+    Out: a redirect to the period's page, or back with an error for
+    input that is not a valid month and year.
+    """
     form = await request.form()
     try:
         month = int(str(form.get("month", "")))
@@ -55,6 +67,12 @@ def period_detail(
     period_id: int,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Show one period's page, its tasks grouped by service, with the
+    generate and close controls.
+
+    In: the period id from the URL, optional ?error=... to display.
+    Out: the rendered period page, or 404 for a bad id.
+    """
     period = queries.get_period(conn, period_id)
     if period is None:
         raise HTTPException(status_code=404, detail="No such period")
@@ -85,6 +103,11 @@ def generate(
     period_id: int,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Generate the period's missing tasks, refused when it is closed.
+
+    In: the period id from the URL.
+    Out: a redirect back to the period page, with an error when closed.
+    """
     period = queries.get_period(conn, period_id)
     if period is None:
         raise HTTPException(status_code=404, detail="No such period")
@@ -101,6 +124,11 @@ def toggle_close(
     period_id: int,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Close an open period or reopen a closed one.
+
+    In: the period id from the URL.
+    Out: a redirect back to the period page with its status flipped.
+    """
     period = queries.get_period(conn, period_id)
     if period is None:
         raise HTTPException(status_code=404, detail="No such period")
@@ -116,6 +144,12 @@ async def set_task_status(
     task_id: int,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Change one task's status from the period page buttons, refused
+    when its period is closed or the value is not an allowed status.
+
+    In: the task id from the URL and the submitted status value.
+    Out: a redirect back to the task's period page.
+    """
     task = queries.get_task(conn, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="No such task")

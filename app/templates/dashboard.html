@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Dashboard</h2>
+
+{% if period is none %}
+<p>No periods yet. <a href="/periods">Create the current month</a> to start tracking.</p>
+{% else %}
+
+<form method="get" action="/dashboard">
+  <label>
+    Period
+    <select name="period" onchange="this.form.submit()">
+      {% for p in periods %}
+      <option value="{{ p['id'] }}" {% if p['id'] == period['id'] %}selected{% endif %}>
+        {{ p['month'] }} / {{ p['year'] }} ({{ p['status'] }})
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit">Go</button></noscript>
+</form>
+
+<h3>Pending compliance, {{ period['month'] }} / {{ period['year'] }}</h3>
+<table border="1" cellpadding="8">
+  <tr>
+    {% for service, count in counts.items() %}
+    <td>
+      <a href="/priority?period={{ period['id'] }}&service={{ service }}">
+        {{ service_labels[service] }}<br>
+        <strong>{{ count }} pending</strong>
+      </a>
+    </td>
+    {% endfor %}
+    <td>Total<br><strong>{{ total }} pending</strong></td>
+  </tr>
+</table>
+
+<h3>Clients with pending work</h3>
+{% if pending_clients %}
+<table border="1" cellpadding="6">
+  <tr>
+    <th>Client</th>
+    <th>Pending tasks</th>
+  </tr>
+  {% for client in pending_clients %}
+  <tr>
+    <td><a href="/clients/{{ client['id'] }}?period={{ period['id'] }}">{{ client['name'] }}</a></td>
+    <td>{{ client['pending'] }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% elif total == 0 %}
+<p><strong>Nothing pending. All caught up for this period.</strong></p>
+{% endif %}
+
+{% if total == 0 and not pending_clients %}
+<p>If tasks were never generated for this period, do it on the <a href="/periods/{{ period['id'] }}">period page</a>.</p>
+{% endif %}
+
+{% endif %}
+{% endblock %}

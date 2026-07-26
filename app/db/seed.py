@@ -30,6 +30,12 @@ JULY_2026 = (7, 2026, "2026-27")
 
 
 def seed_clients(conn: Connection) -> None:
+    """Insert the sample clients and their services, skipping any that
+    already exist.
+
+    In: an open database connection.
+    Out: nothing, rows are written into clients and client_services.
+    """
     for name, folder_path, services in SEED_CLIENTS:
         conn.execute(
             "INSERT OR IGNORE INTO clients (name, folder_path) VALUES (?, ?)",
@@ -50,6 +56,11 @@ def seed_clients(conn: Connection) -> None:
 
 
 def seed_period(conn: Connection) -> int:
+    """Create the July 2026 sample period, or reuse it when rerun.
+
+    In: an open database connection.
+    Out: the period's row id.
+    """
     month, year, financial_year = JULY_2026
 
     conn.execute(
@@ -65,6 +76,11 @@ def seed_period(conn: Connection) -> int:
 
 
 def generate_tasks(conn: Connection, period_id: int) -> None:
+    """Create one pending task per client per active service.
+
+    In: a connection and the period row id to generate for.
+    Out: nothing, missing task rows are inserted, existing ones kept.
+    """
     # The same query v0.4 will use in the app. OR IGNORE plus the UNIQUE
     # constraint on (client_id, period_id, service_type) makes a second
     # run insert nothing.
@@ -76,6 +92,11 @@ def generate_tasks(conn: Connection, period_id: int) -> None:
 
 
 def mark_sample_statuses(conn: Connection, period_id: int) -> None:
+    """Flip a couple of sample tasks into interesting states.
+
+    In: a connection and the period row id.
+    Out: nothing, one task becomes done, one gets a detected proof.
+    """
     # One done task and one detected proof, so every page state has data
     # to show while the UI is being built.
     conn.execute(
@@ -99,6 +120,11 @@ def mark_sample_statuses(conn: Connection, period_id: int) -> None:
 
 
 def print_dashboard(conn: Connection, period_id: int) -> None:
+    """Print the pending counts per service, the seed's proof of life.
+
+    In: a connection and the period row id.
+    Out: nothing returned, prints counts to the terminal.
+    """
     rows = conn.execute(
         "SELECT service_type, COUNT(*) FROM compliance_tasks"
         " WHERE period_id = ? AND status = 'pending'"
@@ -115,6 +141,11 @@ def print_dashboard(conn: Connection, period_id: int) -> None:
 
 
 def main() -> None:
+    """Run the whole seed, migrate first so a brand new file works.
+
+    In: an optional database path from the command line.
+    Out: nothing, the database is filled and counts are printed.
+    """
     db_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DB_PATH
     conn = connect(db_path)
 

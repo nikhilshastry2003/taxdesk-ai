@@ -5,6 +5,7 @@ from app.services import generation
 
 
 def task_count(conn: Connection, period_id: int) -> int:
+    """Count the tasks of one period, a small helper for asserts."""
     row = conn.execute(
         "SELECT COUNT(*) AS n FROM compliance_tasks WHERE period_id = ?",
         (period_id,),
@@ -13,6 +14,7 @@ def task_count(conn: Connection, period_id: int) -> int:
 
 
 def test_generation_creates_one_task_per_active_service(sample_clients: Connection) -> None:
+    """Three active services in the fixture must yield exactly three tasks."""
     conn = sample_clients
     period_id = queries.create_period(conn, 7, 2026, generation.financial_year(7, 2026))
 
@@ -23,6 +25,7 @@ def test_generation_creates_one_task_per_active_service(sample_clients: Connecti
 
 
 def test_second_generation_run_creates_nothing(sample_clients: Connection) -> None:
+    """Generating twice must not create duplicates, the UNIQUE guard."""
     conn = sample_clients
     period_id = queries.create_period(conn, 7, 2026, generation.financial_year(7, 2026))
 
@@ -34,6 +37,7 @@ def test_second_generation_run_creates_nothing(sample_clients: Connection) -> No
 
 
 def test_deactivated_service_generates_nothing_but_task_survives(sample_clients: Connection) -> None:
+    """Switching a service off keeps its old task and adds nothing new."""
     conn = sample_clients
     period_id = queries.create_period(conn, 7, 2026, generation.financial_year(7, 2026))
     generation.generate_tasks(conn, period_id)
@@ -49,6 +53,7 @@ def test_deactivated_service_generates_nothing_but_task_survives(sample_clients:
 
 
 def test_new_client_midmonth_gets_only_its_tasks(sample_clients: Connection) -> None:
+    """A client added mid month gets its task on regenerate, others untouched."""
     conn = sample_clients
     period_id = queries.create_period(conn, 7, 2026, generation.financial_year(7, 2026))
     generation.generate_tasks(conn, period_id)
@@ -65,6 +70,7 @@ def test_new_client_midmonth_gets_only_its_tasks(sample_clients: Connection) -> 
 
 
 def test_financial_year_boundaries() -> None:
+    """April starts a financial year, March ends one."""
     assert generation.financial_year(4, 2026) == "2026-27"
     assert generation.financial_year(3, 2026) == "2025-26"
     assert generation.financial_year(1, 2026) == "2025-26"
@@ -72,6 +78,7 @@ def test_financial_year_boundaries() -> None:
 
 
 def test_due_dates_null_while_rules_are_placeholder(sample_clients: Connection) -> None:
+    """With all due day rules None, every generated due date stays empty."""
     conn = sample_clients
     period_id = queries.create_period(conn, 7, 2026, generation.financial_year(7, 2026))
     generation.generate_tasks(conn, period_id)
@@ -84,6 +91,7 @@ def test_due_dates_null_while_rules_are_placeholder(sample_clients: Connection) 
 
 
 def test_due_dates_fill_once_a_rule_lands(sample_clients: Connection, monkeypatch) -> None:
+    """Setting one rule and regenerating backfills only that service's dates."""
     conn = sample_clients
     period_id = queries.create_period(conn, 7, 2026, generation.financial_year(7, 2026))
     generation.generate_tasks(conn, period_id)
@@ -103,6 +111,7 @@ def test_due_dates_fill_once_a_rule_lands(sample_clients: Connection, monkeypatc
 
 
 def test_december_rolls_due_date_into_january() -> None:
+    """A December period's due date lands in January of the next year."""
     assert generation.due_date_for("GSTR_3B", 12, 2026) is None
     # Direct check of the rollover arithmetic with a temporary rule.
     original = generation.DUE_DAY_RULES["GSTR_3B"]

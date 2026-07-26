@@ -5,12 +5,14 @@ from app.services import generation
 
 
 def make_period_with_tasks(conn: Connection) -> int:
+    """Create July 2026 and generate its tasks, returns the period id."""
     period_id = queries.create_period(conn, 7, 2026, generation.financial_year(7, 2026))
     generation.generate_tasks(conn, period_id)
     return period_id
 
 
 def test_done_records_when_and_how(sample_clients: Connection) -> None:
+    """Marking done must store the time and the manual source."""
     conn = sample_clients
     make_period_with_tasks(conn)
 
@@ -25,6 +27,7 @@ def test_done_records_when_and_how(sample_clients: Connection) -> None:
 
 
 def test_back_to_pending_clears_completion_trace(sample_clients: Connection) -> None:
+    """Undoing done must wipe the completion time and source."""
     conn = sample_clients
     make_period_with_tasks(conn)
 
@@ -40,6 +43,7 @@ def test_back_to_pending_clears_completion_trace(sample_clients: Connection) -> 
 
 
 def test_pending_counts_shrink_as_tasks_complete(sample_clients: Connection) -> None:
+    """Done and not applicable tasks leave the pending count."""
     conn = sample_clients
     period_id = make_period_with_tasks(conn)
 

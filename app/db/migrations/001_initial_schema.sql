@@ -1,4 +1,4 @@
--- Migration 001: initial schema.
+ -- Migration 001: initial schema.
 -- Approved design: docs/design/001-data-model.md (2026-07-12).
 -- No PRAGMA here: foreign_keys is per-connection in SQLite, so the
 -- runner's connect() sets it for every connection, not just this script.

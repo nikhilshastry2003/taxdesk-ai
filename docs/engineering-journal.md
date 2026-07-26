@@ -427,3 +427,311 @@ Question to revisit:
 Next step:
 
 - v0.5, Dashboard and Priority, both reading the same pending tasks these pages now create.
+
+---
+
+## 2026-07-26, third entry
+
+What we built:
+
+v0.5, the Dashboard and Priority pages. Opening TaxDesk now lands on the glance page, four pending counts, a total, and the clients that still owe work. Priority shows the same rows as a searchable working list, and filtered to one service it doubles as the EPF or ESI page.
+
+### Q. How can two pages be guaranteed to agree
+
+They run the same query functions with the same conditions. The Dashboard counts rows that Priority lists, nothing is stored, nothing can drift. And it is no longer a promise, one pytest test computes the counts, lists the rows per service, and asserts they are equal. A future change that breaks the mirror breaks the build.
+
+### Q. What is a query parameter and how do we use it
+
+The part of a URL after the question mark, `/priority?service=EPF&q=kumar`. The page reads them as filters, period, service, search text. That is how one template serves five views, full Priority, four service pages, with zero JavaScript. Anything invalid in them is ignored and the page falls back to sane defaults.
+
+### Q. How does search work without JavaScript
+
+A plain GET form. The browser puts the text into the URL as `q=...`, the route passes it into SQL as `name LIKE ?` with the text parameterized, never spliced into the string. LIKE with COLLATE NOCASE matches fragments ignoring case, so "kumar" finds "Kumar Textiles".
+
+### Q. What changed in how functions are written
+
+Every function now carries a docstring a first time reviewer can follow, what it exactly does, then an In line and an Out line in plain words. Settled today after a few rounds, the bar is, someone opening the file cold understands the ins and outs without another file open.
+
+### Q. What is a JOIN, from first principles
+
+Tables stand alone and know nothing about each other. A task row stores `client_id 7`, a number, not a name, because names change and ids do not. So how does a page show "Kumar Textiles" instead of "client 7"? A JOIN. `JOIN clients c ON c.id = t.client_id` tells the database, for every task row, find the client row whose id matches, and glue the two into one wider row. That is the whole idea, matching rows across tables by a shared key. Foreign keys make the link trustworthy, joins make it readable.
+
+### Q. What does GROUP BY actually do
+
+Rows go in, buckets come out. `GROUP BY service_type` throws every pending task into one bucket per service, and `COUNT(*)` measures each bucket. Many rows collapse into one summary row per group. This is aggregation, and it is why the Dashboard stores nothing, it re-summarizes the truth on every glance. A stored summary can lie, a computed one cannot.
+
+### Q. Why do some redirects say 302 and others 303
+
+Both tell the browser, go to this other page. 302 is the plain one, we use it for simple reads like the home page forwarding to the Dashboard. 303 carries one extra instruction, fetch the next page with GET no matter what you just did. That matters exactly once, after a form POST, and it is the precise letter of the post redirect get pattern, the reason refresh never resubmits a form.
+
+What I learned:
+
+- A product requirement can live as a test. "Priority must exactly mirror Dashboard" is now code that fails loudly, which is stronger than any promise in a document.
+- Computing counts at read time is what made this milestone almost free, two pages and zero migrations, because the data model carried the weight.
+- 18 tests now run in about a second, fast enough to run after every change without thinking.
+
+Decision made:
+
+- Dedicated EPF and ESI pages are Priority filtered by service, one template, four views, nothing extra to maintain.
+- Dashboard stays read only by rule, marking done happens on the period page.
+
+Mistake or confusion:
+
+- None new in the code. The docstring style took three attempts to land because I kept guessing the depth instead of asking for an example of what Nikhil wanted to read.
+
+Question to revisit:
+
+- Whether the Dashboard should someday show due date urgency, colors for near deadlines, once real due days exist.
+
+Next step:
+
+- v0.6, Documents and the proof scanner, the beat Excel moment. Needs dad's folder listings at install time.
+
+---
+
+# Code Map, A Living Section
+
+This part is reference, not diary. It gets updated in every PR that adds
+or reshapes a file. Open any source file next to its entry here and you
+should never need to ask what this is, what it calls, or who calls it.
+The dated entries above teach the fundamentals behind each one.
+
+## The one rule that organizes everything
+
+Requests flow downward through three layers, and each layer only ever
+talks to the one below it.
+
+```text
+routes (web code)  ->  queries / services (logic)  ->  sqlite (data)
+```
+
+Routes never write SQL. Queries never see HTTP. The database never
+knows a web app exists. Every file below belongs to exactly one layer.
+
+## How one page request flows, start to finish
+
+```text
+1. the browser asks for /dashboard
+2. uvicorn, the server process, accepts the request and hands it to
+   the FastAPI app that app/main.py built
+3. FastAPI matches the path and calls dashboard() in
+   app/routes/dashboard.py
+4. FastAPI sees the route wants a database connection and calls
+   get_db() in app/deps.py to open one just for this request
+5. the route calls query functions in app/db/queries.py, which run
+   SQL against taxdesk.db and return rows
+6. the route hands the rows to a template in app/templates/, Jinja2
+   fills the HTML, the response travels back the same road
+```
+
+## How startup flows
+
+```text
+venv/bin/uvicorn app.main:app
+ -> Python imports app/main.py, which imports the four route modules
+ -> lifespan() in main.py runs once, it calls connect() and migrate()
+    from app/db/migrate.py, so the database is created or upgraded
+    before the first request
+ -> the app starts answering
+```
+
+### pyproject.toml
+
+Why it exists: the project's identity card and its dependency list.
+What it does: names the project, pins the 4 runtime dependencies and
+pytest for development, and configures pytest paths.
+Deeper story: ADR 001 in docs/decisions, entry 2026-07-26.
+
+### app/main.py
+
+Why it exists: something must assemble the web app out of its parts.
+What it does: builds the FastAPI app object, runs migrations once at
+startup, and plugs in the four route modules.
+Functions: lifespan() is the only one, it runs around the app's whole
+life, migrations before the first request, nothing after.
+Calls: connect() and migrate() from app/db/migrate.py, db_path() from
+app/deps.py, and include_router() once per route module.
+Called by: uvicorn, which imports app.main:app when you start the app.
+Deeper story: entry 2026-07-26, first entry.
+
+### app/deps.py
+
+Why it exists: pieces every route module needs, kept in one place.
+What it does: holds the shared template engine and hands out database
+connections, one per web request.
+Functions: db_path() picks the database file, the TAXDESK_DB env var
+for tests, taxdesk.db otherwise. get_db() opens a connection for one
+request, commits only if the route finished without an error, and
+always closes it.
+Calls: connect() from app/db/migrate.py.
+Called by: every route function, FastAPI runs get_db() automatically
+whenever a route declares Depends(get_db). main.py calls db_path() at
+startup.
+Deeper story: entry 2026-07-26, first entry.
+
+### app/db/migrations/001_initial_schema.sql
+
+Why it exists: the approved data model as executable SQL, structure in
+git while data stays local.
+What it does: creates the 6 tables with every rule baked in, foreign
+keys, allowed values, and the UNIQUE constraint that makes duplicate
+tasks impossible.
+Deeper story: design note 001, entry 2026-07-13.
+
+### app/db/migrate.py
+
+Why it exists: migration files do nothing by themselves, something must
+apply each one exactly once per database.
+Functions: connect() is the only sanctioned way to open the database,
+it switches foreign keys on and makes rows readable by column name.
+applied_migrations() reads the logbook table. migrate() computes
+pending files minus applied ones and runs each, recording it.
+Calls: only Python's sqlite3 and pathlib, nothing of ours, this is the
+bottom of the stack.
+Called by: everyone. main.py at startup, deps.get_db() per request,
+seed.py, and every test through the conftest fixture. Also runnable by
+hand, python3 app/db/migrate.py.
+Deeper story: entry 2026-07-13, the runner questions.
+
+### app/db/queries.py
+
+Why it exists: one boundary where ALL of the app's SQL lives, routes
+never write SQL themselves.
+Functions, grouped by what they manage:
+- settings, get_setting() and set_setting(), read and write one
+  key value row, like the root folder path
+- clients, list_clients(), get_client(), create_client()
+- services, active_services() reads a client's switched on services,
+  set_service() switches one on or off without ever deleting
+- periods, list_periods(), get_period(), create_period(),
+  set_period_status(), and default_period() which picks the month
+  pages show when none is chosen
+- tasks, tasks_for_period() for the period page table, get_task(),
+  set_task_status() which keeps the completion trace honest
+- glance reads, pending_counts(), pending_tasks(), pending_clients(),
+  client_pending_tasks(), the four behind Dashboard and Priority
+Calls: nothing of ours, it only runs SQL through the connection it is
+handed.
+Called by: every route module, and the dashboard tests call the glance
+reads directly.
+Deeper story: entries 2026-07-26, first and third.
+
+### app/db/seed.py
+
+Why it exists: pages cannot be built or tested against empty tables.
+What it does: fills a development database with 6 fake clients, their
+services, July 2026, generated tasks, and a couple of interesting
+statuses. Runs only on a developer laptop, never on the office machine.
+Functions: main() runs the whole thing in order, seed_clients(),
+seed_period(), generate_tasks(), mark_sample_statuses(), then
+print_dashboard() as proof of life.
+Calls: connect() and migrate() from migrate.py, then its own inserts.
+Called by: nobody in the app, only a human typing
+python3 app/db/seed.py.
+Deeper story: entry 2026-07-17, seed questions.
+
+### app/services/generation.py
+
+Why it exists: task generation is real business logic, kept free of
+HTTP so tests can call it directly.
+Functions: financial_year() computes the April to March year text.
+due_date_for() turns a service's due day rule into a real date, None
+everywhere until dad's answers fill DUE_DAY_RULES. generate_tasks()
+creates a period's missing tasks and backfills due dates where rules
+exist.
+Calls: nothing of ours, pure logic over the connection it is handed.
+Called by: routes/periods.py when the generate button is clicked, and
+directly by the generation tests.
+Deeper story: design note 003, entry 2026-07-26, second.
+
+### app/routes/onboarding.py
+
+Why it exists: dad's clients already exist as folders, the app should
+learn them instead of making him type.
+Functions: onboarding_page() shows the form and the discovered
+folders. save_root() checks the typed path is a real folder and saves
+it. confirm_clients() creates a client per ticked folder, ignoring
+names that are not real subfolders. folder_candidates() is the shared
+helper that lists subfolders and marks which are already clients.
+Calls: queries get_setting, set_setting, list_clients, create_client,
+plus pathlib to walk the disk, and the templates from deps.
+Called by: FastAPI for GET /onboarding, POST /onboarding/root, and
+POST /onboarding/confirm.
+Deeper story: design note 002, entry 2026-07-26, first.
+
+### app/routes/clients.py
+
+Why it exists: the client registry pages.
+Functions: home() redirects / to the Dashboard, or to onboarding when
+no root folder is saved yet. client_list() shows everyone.
+client_detail() shows one client, its service ticks, and its pending
+tasks for the period in context. save_services() writes the checkbox
+form, on for ticked, off for unticked, never deleting.
+Calls: queries get_setting, list_clients, get_client, active_services,
+set_service, get_period, default_period, client_pending_tasks, and the
+templates from deps.
+Called by: FastAPI for GET /, GET /clients, GET /clients/{id}, and
+POST /clients/{id}/services.
+Deeper story: design notes 002 and 004.
+
+### app/routes/periods.py
+
+Why it exists: months and their tick lists, the Excel replacement.
+Functions: period_list() shows every month plus the create form.
+create_period() validates month and year, computes the financial year,
+and creates or reuses the month. period_detail() shows the month's
+tasks grouped by service. generate() creates missing tasks, refused
+when the month is closed. toggle_close() freezes or unfreezes a month.
+set_task_status() flips one task from the page buttons, refused on a
+closed month or a bad value.
+Calls: queries for periods and tasks, financial_year() and
+generate_tasks() from services/generation.py, templates from deps.
+Called by: FastAPI for GET and POST /periods, GET /periods/{id},
+POST generate, POST toggle-close, and POST /tasks/{id}/status.
+Deeper story: design note 003, entry 2026-07-26, second.
+
+### app/routes/dashboard.py
+
+Why it exists: the glance pages, dad's morning question answered.
+Functions: pick_period() decides which month the page is about, the
+URL first, the default period second. dashboard() gathers counts,
+total, and the pending client list. priority() gathers the same rows
+grouped by service, applies the service filter and the name search,
+and filtered to one service it doubles as the EPF or ESI page. Both
+pages are read only.
+Calls: queries pending_counts, pending_tasks, pending_clients,
+list_periods, get_period, default_period, and templates from deps.
+Called by: FastAPI for GET /dashboard and GET /priority.
+Deeper story: design note 004, entry 2026-07-26, third.
+
+### app/templates/
+
+Why it exists: the HTML the pages render, one file per page.
+What it does: base.html is the shared frame with the nav, the others
+fill its content block, onboarding, clients, client_detail, periods,
+period_detail, dashboard, priority. Values are auto escaped by Jinja2.
+Called by: routes hand each template a dict of values through
+templates.TemplateResponse(), templates never call code, they only
+display what they are given.
+Deeper story: entry 2026-07-26, first, the templating question.
+
+### tests/
+
+Why it exists: the logic worth trusting is the logic that is tested.
+What it does: conftest.py gives every test a fresh migrated database in
+a temp folder. test_generation.py covers generation and due dates,
+test_task_status.py covers status traces, test_dashboard.py covers
+counts, search, defaults, and the mirror guarantee between Dashboard
+and Priority.
+Calls: migrate.py for the fixture database, then queries.py and
+services/generation.py directly, skipping the web layer on purpose,
+tests lock the logic, the manual click through checks the wiring.
+Called by: venv/bin/pytest, which finds every test_ function itself.
+Deeper story: entries 2026-07-26, second and third.
+
+### taxdesk.db (not in git)
+
+Why it exists: the actual database, created on first run.
+What it does: holds all real data. Gitignored on purpose, structure
+travels through migrations, data never leaves the machine.
+Deeper story: entry 2026-07-13, why the db file is not committed.
