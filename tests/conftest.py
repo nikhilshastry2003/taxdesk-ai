@@ -12,6 +12,11 @@ from app.db.migrate import connect, migrate
 
 @pytest.fixture
 def conn(tmp_path: Path) -> Iterator[Connection]:
+    """Give a test a fresh, fully migrated database in a temp folder.
+
+    In: pytest's tmp_path, a unique temp folder per test.
+    Out: an open connection the test uses, closed automatically after.
+    """
     connection = connect(tmp_path / "test.db")
     migrate(connection)
     yield connection

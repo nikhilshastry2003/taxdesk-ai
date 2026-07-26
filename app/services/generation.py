@@ -24,6 +24,13 @@ def financial_year(month: int, year: int) -> str:
 
 
 def due_date_for(service_type: str, month: int, year: int) -> str | None:
+    """Work out a task's due date, which falls in the month after the
+    period. All rules are None today, so this returns None everywhere
+    until dad's real due days are filled in.
+
+    In: a service type and the period's month and year.
+    Out: an ISO date string like '2026-08-20', or None without a rule.
+    """
     day = DUE_DAY_RULES.get(service_type)
     if day is None:
         return None

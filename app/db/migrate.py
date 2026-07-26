@@ -30,6 +30,12 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
 
 
 def applied_migrations(conn: sqlite3.Connection) -> set[str]:
+    """Read the logbook of migrations this database has already run.
+    Creates the logbook table itself on a brand new database.
+
+    In: an open database connection.
+    Out: the set of already applied filenames, empty on a fresh db.
+    """
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_migrations ("
         " filename   TEXT PRIMARY KEY,"
@@ -41,6 +47,12 @@ def applied_migrations(conn: sqlite3.Connection) -> set[str]:
 
 
 def migrate(conn: sqlite3.Connection) -> None:
+    """Apply every migration file this database has not run yet, in
+    filename order, and record each one. Running it again is a no-op.
+
+    In: an open database connection.
+    Out: nothing returned, prints what was applied or that nothing was.
+    """
     already_applied = applied_migrations(conn)
     all_migrations = sorted(MIGRATIONS_DIR.glob("*.sql"))
     pending = [

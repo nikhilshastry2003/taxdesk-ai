@@ -19,6 +19,11 @@ from app.routes.periods import router as periods_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Run once around the app's life, migrations before it serves.
+
+    In: the FastAPI app being started.
+    Out: yields control while the app runs, nothing to clean up after.
+    """
     # Migrations run at startup, so installing and opening the app is
     # all a user ever does. The runner is idempotent, a normal start
     # with nothing pending applies nothing.

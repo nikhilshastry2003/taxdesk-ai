@@ -29,6 +29,11 @@ def client_list(
     request: Request,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Show the client list page.
+
+    In: nothing from the URL.
+    Out: the rendered list of all clients.
+    """
     return templates.TemplateResponse(
         request,
         "clients.html",
@@ -90,6 +95,12 @@ async def save_services(
     client_id: int,
     conn: Connection = Depends(get_db),
 ) -> Response:
+    """Save the service checkboxes for one client. Ticked services are
+    switched on, everything unticked is switched off, never deleted.
+
+    In: the client id from the URL and the submitted checkbox form.
+    Out: a redirect back to the client page, or 404 for a bad id.
+    """
     if queries.get_client(conn, client_id) is None:
         raise HTTPException(status_code=404, detail="No such client")
 

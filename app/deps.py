@@ -16,7 +16,12 @@ templates = Jinja2Templates(
 
 
 def db_path() -> Path:
-    # TAXDESK_DB lets tests point the whole app at a scratch database.
+    """Decide which database file the app uses.
+
+    In: nothing, reads the TAXDESK_DB environment variable if set,
+    which is how tests point the app at a scratch database.
+    Out: the path to the database file, default taxdesk.db at repo root.
+    """
     return Path(os.environ.get("TAXDESK_DB", str(DEFAULT_DB_PATH)))
 
 
