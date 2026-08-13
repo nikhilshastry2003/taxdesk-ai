@@ -49,6 +49,7 @@ Start here:
 - `docs/engineering-journal.md`
 - `docs/engieering_guide.md`
 - `docs/deep-dive.md` (also as `docs/deep-dive.pdf`)
+- `docs/codebase-mastery.md` (also as `docs/codebase-mastery.pdf`)
 
 ## Next Milestone
 
