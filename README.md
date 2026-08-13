@@ -48,6 +48,7 @@ Start here:
 - `docs/folder-structure.md`
 - `docs/engineering-journal.md`
 - `docs/engieering_guide.md`
+- `docs/deep-dive.md` (also as `docs/deep-dive.pdf`)
 
 ## Next Milestone
 
