@@ -27,16 +27,19 @@ is the proof for the finished ones.
 A small web app running on localhost, one process, one database file.
 Three layers, and each layer talks only to the one below it.
 
-```text
-browser (dad clicks)
-   |            HTTP requests and responses
-web layer       routes, one function per page, parses input, redirects
-   |            plain function calls
-logic layer     the business rules and every SQL statement, in one place
-   |            SQL over a single connection per request
-SQLite          taxdesk.db, one local file, enforces the data rules itself
-   |
-disk            dad's existing client folders, read, never restructured
+```mermaid
+flowchart TD
+    browser["Browser, dad clicks"]
+    web["Web layer, routes, one function per page, parses input, redirects"]
+    logic["Logic layer, business rules and every SQL statement, in one place"]
+    db[("taxdesk.db, SQLite, one local file, enforces the data rules itself")]
+    disk["Dad's client folders on disk, read, never restructured"]
+
+    browser -->|"HTTP request"| web
+    web -->|"plain function calls"| logic
+    logic -->|"SQL, one connection per request"| db
+    logic -->|"reads file names"| disk
+    web -->|"HTML page back"| browser
 ```
 
 Why this shape. Pages must never contain business rules, rules must
