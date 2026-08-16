@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TaxDesk Compliance Command Demo</title>
+  <style>
+    :root {
+      --bg: #f6f7f4;
+      --surface: #ffffff;
+      --ink: #17211b;
+      --muted: #68736d;
+      --line: #d9ded8;
+      --green: #226b4a;
+      --green-soft: #deeee5;
+      --amber: #9a640e;
+      --amber-soft: #f5ead5;
+      --red: #9a3838;
+      --red-soft: #f4dfdf;
+      --blue: #245b78;
+      --blue-soft: #deebf2;
+      --violet: #66518a;
+      --violet-soft: #e9e2f2;
+      --radius: 8px;
+      --shadow: 0 14px 34px rgba(23, 33, 27, 0.08);
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font);
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+    button, input, select { font: inherit; }
+    button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
+    .sidebar {
+      position: sticky; top: 0; height: 100vh;
+      background: #17251e; color: #f5f8f4; padding: 20px 16px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 4px 4px 14px; border-bottom: 1px solid rgba(255,255,255,.13); }
+    .brand-mark { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: #f0c15c; color: #17251e; font-weight: 850; }
+    .brand h1 { margin: 0; font-size: 18px; line-height: 1.1; }
+    .brand span { font-size: 12px; color: rgba(245,248,244,.68); }
+    .nav { display: grid; gap: 6px; }
+    .nav button { min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; color: rgba(245,248,244,.76); text-align: left; }
+    .nav button:hover, .nav button.active { background: rgba(255,255,255,.1); color: #fff; }
+    .icon, .nav svg { width: 18px; height: 18px; flex: 0 0 auto; }
+    .sidebar-note { margin-top: auto; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.13); color: rgba(245,248,244,.72); display: grid; gap: 8px; }
+    .sidebar-note strong { color: #fff; }
+
+    .main { min-width: 0; display: grid; grid-template-rows: auto 1fr; }
+    .topbar {
+      height: 72px; padding: 0 28px; border-bottom: 1px solid var(--line);
+      background: rgba(246,247,244,.94); backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      position: sticky; top: 0; z-index: 5;
+    }
+    .mobile-menu { display: none; }
+    .top-title { min-width: 0; }
+    .top-title strong { display: block; font-size: 15px; }
+    .top-title span { color: var(--muted); font-size: 13px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .btn {
+      min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 0 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap;
+    }
+    .btn.primary { background: var(--green); border-color: var(--green); color: white; }
+    .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+    .select, .input { height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0 11px; outline: 0; }
+    .input { min-width: 230px; }
+
+    .content { min-width: 0; padding: 24px 28px 34px; display: grid; gap: 22px; }
+    .view { display: none; }
+    .view.active { display: grid; gap: 22px; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+    .title-block h2 { margin: 0 0 6px; font-size: 28px; line-height: 1.1; letter-spacing: 0; }
+    .title-block p { margin: 0; color: var(--muted); }
+    .head-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .metric {
+      min-height: 146px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+      display: grid; gap: 12px; align-content: start; text-align: left;
+    }
+    button.metric:hover { border-color: #a8c9b6; box-shadow: var(--shadow); }
+    .metric-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); }
+    .metric-value { font-size: 34px; line-height: 1; font-weight: 800; }
+    .metric-foot { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .split-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mini-button { padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: #fbfcfa; display: grid; gap: 4px; text-align: left; }
+    .mini-button:hover { border-color: var(--green); }
+    .mini-button strong { font-size: 18px; }
+    .mini-button span { color: var(--muted); font-size: 12px; }
+
+    .status { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .status.done { color: var(--green); background: var(--green-soft); }
+    .status.pending { color: var(--amber); background: var(--amber-soft); }
+    .status.blocked { color: var(--red); background: var(--red-soft); }
+    .status.info { color: var(--blue); background: var(--blue-soft); }
+    .status.violet { color: var(--violet); background: var(--violet-soft); }
+    .status.na { color: var(--muted); background: #edf0ee; }
+
+    .grid-2 { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr); gap: 18px; align-items: start; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .panel-head { min-height: 56px; padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .panel-title { display: flex; align-items: center; gap: 9px; font-weight: 750; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-size: 12px; font-weight: 750; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr.clickable { cursor: pointer; }
+    tbody tr.clickable:hover { background: #fbfcfa; }
+
+    .client-cell { min-width: 210px; display: flex; align-items: center; gap: 10px; }
+    .avatar { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue); font-weight: 800; flex: 0 0 auto; }
+    .client-name { font-weight: 750; }
+    .client-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .list { display: grid; }
+    .list-item { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+    .list-item:last-child { border-bottom: 0; }
+    .item-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .item-title { font-weight: 750; }
+    .item-sub { color: var(--muted); font-size: 13px; line-height: 1.45; }
+
+    .client-layout { display: grid; grid-template-columns: minmax(300px, .82fr) minmax(0, 1.18fr); gap: 18px; align-items: start; }
+    .profile-band { background: #173026; color: white; border-radius: 8px; padding: 18px; display: grid; gap: 16px; }
+    .profile-main { display: flex; align-items: center; gap: 12px; }
+    .profile-avatar { width: 52px; height: 52px; border-radius: 8px; display: grid; place-items: center; background: #f0c15c; color: #173026; font-weight: 850; font-size: 20px; }
+    .profile-main h3 { margin: 0 0 4px; font-size: 22px; }
+    .profile-main p { margin: 0; color: rgba(255,255,255,.72); }
+    .profile-kv { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.14); }
+    .kv-row { display: flex; justify-content: space-between; gap: 12px; color: rgba(255,255,255,.76); }
+    .kv-row strong { color: white; text-align: right; }
+    .task-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .task-row:last-child { border-bottom: 0; }
+    .task-name { font-weight: 750; }
+    .task-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+    .doc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }
+    .doc-item { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-height: 112px; display: grid; gap: 8px; }
+    .doc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .doc-name { font-weight: 750; line-height: 1.35; }
+    .doc-path { color: var(--muted); font-size: 12px; line-height: 1.4; word-break: break-word; }
+
+    .mobile-overlay { display: none; position: fixed; inset: 0; z-index: 9; background: rgba(0,0,0,.3); }
+
+    @media (max-width: 1120px) {
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .grid-2, .client-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 820px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: fixed; inset: 0 auto 0 0; width: 280px; z-index: 10; transform: translateX(-100%); transition: transform 160ms ease; }
+      body.nav-open .sidebar { transform: translateX(0); }
+      body.nav-open .mobile-overlay { display: block; }
+      .mobile-menu { display: inline-flex; }
+      .topbar { padding: 0 16px; }
+      .content { padding: 18px 16px 28px; }
+      .top-actions { display: none; }
+      .metrics, .doc-grid { grid-template-columns: 1fr; }
+      .page-head { flex-direction: column; }
+      .title-block h2 { font-size: 24px; }
+      .input { width: 100%; min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+  <div class="app">
+    <aside class="sidebar" aria-label="TaxDesk navigation">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div><h1>TaxDesk</h1><span>Compliance Command</span></div>
+      </div>
+      <nav class="nav">
+        <button class="active" data-view="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</button>
+        <button data-view="priority"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 15 8l6 .9-4.5 4.3 1.1 6.1L12 16.4 6.4 19.3l1.1-6.1L3 8.9 9 8z"/></svg>Priority</button>
+        <button data-view="clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clients</button>
+        <button data-view="documents"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>Documents</button>
+      </nav>
+      <div class="sidebar-note"><strong>July 2026</strong><span>Dashboard is the source of truth.</span><span>Priority mirrors pending items exactly.</span></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div style="display:flex;align-items:center;gap:12px;min-width:0">
+          <button class="btn mobile-menu" id="menuBtn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+          <div class="top-title"><strong id="topTitle">Dashboard</strong><span>No dashboard search. Use Priority, Clients, or Documents search.</span></div>
+        </div>
+        <div class="top-actions">
+          <select class="select" id="monthSelect"><option>July 2026</option><option>June 2026</option><option>FY 2025-26</option></select>
+          <button class="btn" data-view-jump="priority">Open Priority</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <section class="view active" id="dashboard">
+          <div class="page-head">
+            <div class="title-block"><h2>Pending Compliance</h2><p>Only GSTR-3B, GSTR-1, EPF, and ESI pending work is shown here.</p></div>
+            <span class="status info">Single source of truth</span>
+          </div>
+
+          <div class="metrics" id="dashboardCards"></div>
+
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Pending client list</div><button class="btn" data-view-jump="priority">Search in Priority</button></div>
+            <div class="table-wrap"><table><thead><tr><th>Client</th><th>Pending item</th><th>Due</th><th>Document/proof status</th><th>Action</th></tr></thead><tbody id="dashboardPendingRows"></tbody></table></div>
+          </div>
+        </section>
+
+        <section class="view" id="priority">
+          <div class="page-head">
+            <div class="title-block"><h2>Priority</h2><p>Matches Dashboard pending data exactly. Completed sections turn green when pending count is zero.</p></div>
+            <div class="head-tools"><input class="input" id="prioritySearch" placeholder="Search client or task" /><select class="select" id="priorityYear"><option>July 2026</option><option>June 2026</option><option>FY 2025-26</option><option>FY 2024-25</option></select></div>
+          </div>
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title">Priority sections</div><span class="status info">Dashboard synced</span></div>
+              <div class="list" id="prioritySections"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title" id="priorityListTitle">All pending clients</div><button class="btn ghost" id="clearPriorityFilter">Clear filter</button></div>
+              <div class="table-wrap"><table><thead><tr><th>Client</th><th>Task</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody id="priorityRows"></tbody></table></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="clients">
+          <div class="page-head">
+            <div class="title-block"><h2>Clients</h2><p>Client home page shows selected client's pending compliance status.</p></div>
+            <div class="head-tools"><input class="input" id="clientSearch" placeholder="Search client" /><select class="select"><option>July 2026</option><option>FY 2025-26</option></select></div>
+          </div>
+          <div class="client-layout">
+            <div class="panel"><div class="panel-head"><div class="panel-title">Client list</div><span class="status info">42 active</span></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>Services</th><th>Pending</th></tr></thead><tbody id="clientRows"></tbody></table></div></div>
+            <div id="clientDetail"></div>
+          </div>
+        </section>
+
+        <section class="view" id="documents">
+          <div class="page-head">
+            <div class="title-block"><h2>Documents</h2><p>Linked to local document folders. Search by client, file name, date, or year.</p></div>
+            <div class="head-tools"><input class="input" id="documentSearch" placeholder="Search local folders" /><select class="select" id="documentYear"><option>All years</option><option>2026</option><option>2025</option><option>FY 2025-26</option></select></div>
+          </div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">Local files and folders</div><span class="status info">Local links</span></div><div class="doc-grid" id="documentGrid"></div></div>
+        </section>
+
+        <section class="view" id="epfPage">
+          <div class="page-head"><div class="title-block"><h2>EPF / ECR</h2><p>EPF pending clients opened from the Dashboard.</p></div><button class="btn" data-view-jump="dashboard">Back to Dashboard</button></div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">EPF ECR pending</div><span id="epfCountPill"></span></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>Task</th><th>Due</th><th>Proof</th><th></th></tr></thead><tbody id="epfRows"></tbody></table></div></div>
+        </section>
+
+        <section class="view" id="esiPage">
+          <div class="page-head"><div class="title-block"><h2>ESI Challan / Claims</h2><p>ESI pending clients opened from the Dashboard.</p></div><button class="btn" data-view-jump="dashboard">Back to Dashboard</button></div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">ESI pending</div><span id="esiCountPill"></span></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>Task</th><th>Due</th><th>Proof</th><th></th></tr></thead><tbody id="esiRows"></tbody></table></div></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const clients = [
+      { name: 'ABC Traders', code: 'AT', services: ['GST', 'EPF'], folder: 'D:/TaxDesk/ABC Traders', phone: '+91 90000 11111' },
+      { name: 'Divgi Industries', code: 'DI', services: ['GST', 'ESI'], folder: 'D:/TaxDesk/Divgi Industries', phone: '+91 90000 22222' },
+      { name: 'Kumar Textiles', code: 'KT', services: ['GST', 'EPF', 'ESI'], folder: 'D:/TaxDesk/Kumar Textiles', phone: '+91 90000 33333' },
+      { name: 'Ramesh Stores', code: 'RS', services: ['GST'], folder: 'D:/TaxDesk/Ramesh Stores', phone: '+91 90000 44444' },
+      { name: 'Mehta Services', code: 'MS', services: ['GST', 'Accounting'], folder: 'D:/TaxDesk/Mehta Services', phone: '+91 90000 55555' }
+    ];
+
+    const pendingItems = [
+      { client: 'ABC Traders', type: 'GSTR-3B', due: '20 Jul 2026', proof: 'Challan not linked', status: 'Pending' },
+      { client: 'Divgi Industries', type: 'GSTR-1', due: '11 Jul 2026', proof: 'Return file missing', status: 'Pending' },
+      { client: 'Kumar Textiles', type: 'EPF', due: '15 Jul 2026', proof: 'ECR not saved', status: 'Pending' },
+      { client: 'Divgi Industries', type: 'ESI', due: '15 Jul 2026', proof: 'Challan not saved', status: 'Pending' },
+      { client: 'Ramesh Stores', type: 'GSTR-3B', due: '20 Jul 2026', proof: 'Purchase bills pending', status: 'Pending' },
+      { client: 'ABC Traders', type: 'EPF', due: '15 Jul 2026', proof: 'Payment proof pending', status: 'Pending' }
+    ];
+
+    const documents = [
+      { client: 'ABC Traders', name: 'GSTR-3B Challan - June 2026.pdf', type: 'GST challan', year: '2026', path: 'D:/TaxDesk/ABC Traders/GST/2026/GSTR3B_Challan_June.pdf' },
+      { client: 'ABC Traders', name: 'EPF ECR - June 2026.xlsx', type: 'EPF/ECR', year: '2026', path: 'D:/TaxDesk/ABC Traders/EPF/2026/ECR_June.xlsx' },
+      { client: 'Divgi Industries', name: 'GSTR-1 - May 2026.pdf', type: 'GSTR-1', year: '2026', path: 'D:/TaxDesk/Divgi Industries/GST/2026/GSTR1_May.pdf' },
+      { client: 'Divgi Industries', name: 'ESI Challan - June 2026.pdf', type: 'ESI challan', year: '2026', path: 'D:/TaxDesk/Divgi Industries/ESI/2026/Challan_June.pdf' },
+      { client: 'Ramesh Stores', name: 'ITR Acknowledgement FY 2024-25.pdf', type: 'ITR ack', year: '2025', path: 'D:/TaxDesk/Ramesh Stores/ITR/FY_2024_25/ACK.pdf' },
+      { client: 'Kumar Textiles', name: 'Salary Sheet - July 2026.xlsx', type: 'Salary sheet', year: '2026', path: 'D:/TaxDesk/Kumar Textiles/Salary/July_2026.xlsx' }
+    ];
+
+    let priorityFilter = 'ALL';
+    let selectedClient = clients[0].name;
+
+    const typeLabels = {
+      'GSTR-3B': 'GSTR-3B',
+      'GSTR-1': 'GSTR-1',
+      EPF: 'EPF / ECR',
+      ESI: 'ESI Challan / Claims'
+    };
+
+    function byClient(name) { return clients.find(c => c.name === name); }
+    function statusClass(value) { return String(value).toLowerCase().includes('pending') ? 'pending' : String(value).toLowerCase().includes('missing') ? 'blocked' : 'done'; }
+    function statusPill(value, cls) { return `<span class="status ${cls || statusClass(value)}">${value}</span>`; }
+    function clientCell(clientName) {
+      const c = byClient(clientName);
+      return `<div class="client-cell"><div class="avatar">${c.code}</div><div><div class="client-name">${c.name}</div><div class="client-meta">${c.folder}</div></div></div>`;
+    }
+    function counts() {
+      return ['GSTR-3B', 'GSTR-1', 'EPF', 'ESI'].reduce((acc, type) => {
+        acc[type] = pendingItems.filter(i => i.type === type).length;
+        return acc;
+      }, {});
+    }
+
+    function setView(id) {
+      document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
+      document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+      const titles = { dashboard: 'Dashboard', priority: 'Priority', clients: 'Clients', documents: 'Documents', epfPage: 'EPF / ECR', esiPage: 'ESI Challan / Claims' };
+      document.getElementById('topTitle').textContent = titles[id] || 'TaxDesk';
+      document.body.classList.remove('nav-open');
+    }
+
+    function openPriority(type = 'ALL') {
+      priorityFilter = type;
+      setView('priority');
+      renderPriority();
+    }
+
+    function openClient(name) {
+      selectedClient = name;
+      setView('clients');
+      renderClients();
+    }
+
+    function renderDashboard() {
+      const c = counts();
+      const cards = [
+        { type: 'GSTR-3B', title: 'GSTR-3B', count: c['GSTR-3B'], foot: 'Monthly GST payment return' },
+        { type: 'GSTR-1', title: 'GSTR-1', count: c['GSTR-1'], foot: 'Sales return filing status' }
+      ].map(card => `
+        <button class="metric" onclick="openPriority('${card.type}')">
+          <div class="metric-top"><span>${card.title}</span>${statusPill(card.count ? 'Pending' : 'Completed', card.count ? 'pending' : 'done')}</div>
+          <div class="metric-value">${card.count}</div>
+          <div class="metric-foot">${card.foot}</div>
+        </button>`).join('');
+
+      document.getElementById('dashboardCards').innerHTML = cards + `
+        <div class="metric">
+          <div class="metric-top"><span>EPF & ESI</span>${statusPill(c.EPF + c.ESI ? 'Pending' : 'Completed', c.EPF + c.ESI ? 'pending' : 'done')}</div>
+          <div class="split-mini">
+            <button class="mini-button" onclick="setView('epfPage')"><strong>${c.EPF}</strong><span>EPF / ECR</span></button>
+            <button class="mini-button" onclick="setView('esiPage')"><strong>${c.ESI}</strong><span>ESI Challan / Claims</span></button>
+          </div>
+          <div class="metric-foot">EPF and ESI open as separate sections.</div>
+        </div>
+        <button class="metric" onclick="openPriority('ALL')">
+          <div class="metric-top"><span>Total pending</span>${statusPill(pendingItems.length ? 'Open' : 'Completed', pendingItems.length ? 'pending' : 'done')}</div>
+          <div class="metric-value">${pendingItems.length}</div>
+          <div class="metric-foot">Open Priority for client-wise list.</div>
+        </button>`;
+
+      document.getElementById('dashboardPendingRows').innerHTML = pendingItems.map(item => `
+        <tr class="clickable" onclick="openClient('${item.client}')">
+          <td>${clientCell(item.client)}</td><td>${typeLabels[item.type]}</td><td>${item.due}</td><td>${item.proof}</td><td><button class="btn">Open client</button></td>
+        </tr>`).join('');
+    }
+
+    function renderPriority() {
+      const c = counts();
+      const sections = ['GSTR-3B', 'GSTR-1', 'EPF', 'ESI'].map(type => {
+        const count = c[type];
+        return `<div class="list-item"><div class="item-row"><div><div class="item-title">${typeLabels[type]}</div><div class="item-sub">${count ? `${count} pending client${count > 1 ? 's' : ''}` : 'No pending clients'}</div></div>${statusPill(count ? 'Pending' : 'Completed', count ? 'pending' : 'done')}</div><div><button class="btn" onclick="openPriority('${type}')">View section</button></div></div>`;
+      }).join('');
+      document.getElementById('prioritySections').innerHTML = sections;
+
+      const query = document.getElementById('prioritySearch')?.value?.toLowerCase() || '';
+      const rows = pendingItems.filter(item => (priorityFilter === 'ALL' || item.type === priorityFilter) && (`${item.client} ${item.type} ${item.due}`.toLowerCase().includes(query)));
+      document.getElementById('priorityListTitle').textContent = priorityFilter === 'ALL' ? 'All pending clients' : `${typeLabels[priorityFilter]} pending clients`;
+      document.getElementById('priorityRows').innerHTML = rows.length ? rows.map(item => `
+        <tr class="clickable" onclick="openClient('${item.client}')"><td>${clientCell(item.client)}</td><td>${typeLabels[item.type]}</td><td>${item.due}</td><td>${statusPill(item.status, 'pending')}</td><td><button class="btn">Open client</button></td></tr>`).join('') : `<tr><td colspan="5">No pending clients in this section.</td></tr>`;
+    }
+
+    function renderClients() {
+      const query = document.getElementById('clientSearch')?.value?.toLowerCase() || '';
+      const filtered = clients.filter(c => c.name.toLowerCase().includes(query));
+      document.getElementById('clientRows').innerHTML = filtered.map(c => {
+        const pending = pendingItems.filter(i => i.client === c.name).length;
+        return `<tr class="clickable" onclick="openClient('${c.name}')"><td>${clientCell(c.name)}</td><td>${c.services.join(', ')}</td><td>${statusPill(pending ? `${pending} pending` : 'Completed', pending ? 'pending' : 'done')}</td></tr>`;
+      }).join('');
+      renderClientDetail(selectedClient);
+    }
+
+    function renderClientDetail(name) {
+      const c = byClient(name) || clients[0];
+      const items = pendingItems.filter(i => i.client === c.name);
+      document.getElementById('clientDetail').innerHTML = `
+        <div style="display:grid;gap:18px">
+          <div class="profile-band"><div class="profile-main"><div class="profile-avatar">${c.code}</div><div><h3>${c.name}</h3><p>${c.services.join(' · ')}</p></div></div><div class="profile-kv"><div class="kv-row"><span>Folder</span><strong>${c.folder}</strong></div><div class="kv-row"><span>Phone</span><strong>${c.phone}</strong></div><div class="kv-row"><span>Pending</span><strong>${items.length}</strong></div></div></div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">Pending status only</div>${statusPill(items.length ? 'Pending' : 'Completed', items.length ? 'pending' : 'done')}</div>
+          ${items.length ? items.map(item => `<div class="task-row"><div><div class="task-name">${typeLabels[item.type]}</div><div class="task-meta">Due ${item.due} · ${item.proof}</div></div>${statusPill(item.status, 'pending')}</div>`).join('') : '<div class="list-item"><div class="item-title">No pending compliance items</div><div class="item-sub">This client is green for the selected period.</div></div>'}
+          </div>
+        </div>`;
+    }
+
+    function renderDocuments() {
+      const q = document.getElementById('documentSearch')?.value?.toLowerCase() || '';
+      const y = document.getElementById('documentYear')?.value || 'All years';
+      const filtered = documents.filter(d => (`${d.client} ${d.name} ${d.type} ${d.path} ${d.year}`.toLowerCase().includes(q)) && (y === 'All years' || d.year === y || d.path.includes(y)));
+      document.getElementById('documentGrid').innerHTML = filtered.map(d => `<div class="doc-item"><div class="doc-top">${statusPill(d.type, 'info')}<button class="btn ghost">Open</button></div><div class="doc-name">${d.name}</div><div class="doc-path">${d.client} · ${d.path}</div></div>`).join('') || '<div class="list-item">No matching documents found.</div>';
+    }
+
+    function renderEpfEsi() {
+      const epf = pendingItems.filter(i => i.type === 'EPF');
+      const esi = pendingItems.filter(i => i.type === 'ESI');
+      document.getElementById('epfCountPill').innerHTML = statusPill(epf.length ? `${epf.length} pending` : 'Completed', epf.length ? 'pending' : 'done');
+      document.getElementById('esiCountPill').innerHTML = statusPill(esi.length ? `${esi.length} pending` : 'Completed', esi.length ? 'pending' : 'done');
+      document.getElementById('epfRows').innerHTML = epf.map(item => `<tr class="clickable" onclick="openClient('${item.client}')"><td>${clientCell(item.client)}</td><td>EPF / ECR</td><td>${item.due}</td><td>${item.proof}</td><td><button class="btn">Open client</button></td></tr>`).join('') || '<tr><td colspan="5">All EPF/ECR work completed.</td></tr>';
+      document.getElementById('esiRows').innerHTML = esi.map(item => `<tr class="clickable" onclick="openClient('${item.client}')"><td>${clientCell(item.client)}</td><td>ESI Challan / Claims</td><td>${item.due}</td><td>${item.proof}</td><td><button class="btn">Open client</button></td></tr>`).join('') || '<tr><td colspan="5">All ESI work completed.</td></tr>';
+    }
+
+    document.querySelectorAll('.nav button[data-view]').forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
+    document.querySelectorAll('[data-view-jump]').forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.viewJump)));
+    document.getElementById('menuBtn').addEventListener('click', () => document.body.classList.add('nav-open'));
+    document.getElementById('mobileOverlay').addEventListener('click', () => document.body.classList.remove('nav-open'));
+    document.getElementById('prioritySearch').addEventListener('input', renderPriority);
+    document.getElementById('clearPriorityFilter').addEventListener('click', () => openPriority('ALL'));
+    document.getElementById('clientSearch').addEventListener('input', renderClients);
+    document.getElementById('documentSearch').addEventListener('input', renderDocuments);
+    document.getElementById('documentYear').addEventListener('change', renderDocuments);
+
+    renderDashboard();
+    renderPriority();
+    renderClients();
+    renderDocuments();
+    renderEpfEsi();
+  </script>
+</body>
+</html>
