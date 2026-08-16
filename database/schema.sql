@@ -42,8 +42,8 @@ CREATE TABLE TASKS(
         CHECK (STATUS IN ('pending', 'done', 'not_applicable')),
     -- nullable on purpose, real due days are unknown until dad confirms them
     DUE_DATE TEXT,
-    COMPLETED_DATE TEXT,
-    COMPLETED_METHOD TEXT,
+    COMPLETED_AT TEXT,
+    COMPLETION_METHOD TEXT,
     -- the core product rule, one client, one service, one month, at most one task
     UNIQUE (CLIENT_ID, SERVICE_ID, PERIOD_YEAR, PERIOD_MONTH),
     FOREIGN KEY (CLIENT_ID) REFERENCES CLIENTS(ID),
@@ -53,6 +53,9 @@ CREATE TABLE TASKS(
 
 CREATE TABLE documents (
     id INTEGER PRIMARY KEY,
+    -- every document belongs to a client, search by client depends on this
+    client_id INTEGER NOT NULL,
     filename TEXT NOT NULL,
-    path TEXT NOT NULL
+    path TEXT NOT NULL,
+    FOREIGN KEY (client_id) REFERENCES CLIENTS(ID)
 );
