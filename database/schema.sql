@@ -40,7 +40,7 @@ CREATE TABLE TASKS(
     PERIOD_MONTH INTEGER NOT NULL,
     STATUS TEXT NOT NULL DEFAULT 'pending'
         CHECK (STATUS IN ('pending', 'done', 'not_applicable')),
-    -- nullable on purpose, real due days are unknown until dad confirms them
+    -- nullable on purpose, real due days are unknown until the practitioner confirms them
     DUE_DATE TEXT,
     COMPLETED_AT TEXT,
     COMPLETION_METHOD TEXT,
