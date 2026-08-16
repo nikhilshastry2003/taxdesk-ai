@@ -79,10 +79,5 @@ right, and finding a proof file is faster than Windows Explorer.
 The complete previous implementation, with its tests, journal, and
 teaching documents, is preserved in two tags.
 
-```bash
-git show v0.5-reference -- .                    # browse the finished product
-git show docs-reference:docs/deep-dive.md       # read a teaching doc
-git checkout v0.5-reference -- tests/           # restore the test suite as a target
-```
 
 The rebuild rule. Think first, struggle a little, then peek, then ask.
