@@ -76,7 +76,27 @@ naturally keyed, and tasks enforce their natural identity through a
 UNIQUE constraint so duplicate work items are impossible at the
 engine, not by code discipline.
 
+## The migration runner
+
+`database/migrate.py` owns two jobs.
+
+- connect(): the only sanctioned way to open the database. It opens
+  or creates `database/taxdesk.db` and switches foreign keys on, so
+  no caller can forget the per connection pragma.
+- initialize(): applies `schema.sql` exactly once per database. A one
+  table logbook, schema_applied, records what has run, so a second
+  run finds the record and touches nothing. Existing data is never
+  recreated or deleted. Apply and record happen inside one commit, a
+  crash between them cannot leave the database lying about itself.
+
+```bash
+python3 database/migrate.py          # database/taxdesk.db
+venv/bin/pytest                      # the four database tests
+```
+
+The same logbook accepts numbered migration files later, schema
+changes become new files, never edits to applied ones.
+
 ## Next
 
-The migration runner, one connect function with the PRAGMA, applies
-this schema to a fresh database exactly once, recorded.
+Seed data for development, then the onboarding pages.
