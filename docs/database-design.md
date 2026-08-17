@@ -97,6 +97,23 @@ venv/bin/pytest                      # the four database tests
 The same logbook accepts numbered migration files later, schema
 changes become new files, never edits to applied ones.
 
+## Services are initialization, not seed
+
+The four filing types are inserted by `schema.sql` itself. A real
+database with zero services could do nothing, so they are structure
+pretending to be data. Renaming or adding a service later is a data
+operation, no schema change. The development seed only invents fake
+things, clients, subscriptions, one month, generated tasks.
+
+```bash
+python3 -m database.seed             # fill a development database
+```
+
+The seed is rerunnable, every write is INSERT OR IGNORE or a
+deterministic UPDATE, and its generation query is the same shape the
+app will use, one task per active subscription, duplicates absorbed
+by the UNIQUE rule on TASKS.
+
 ## Next
 
-Seed data for development, then the onboarding pages.
+The onboarding pages, and the settings discussion before them.
