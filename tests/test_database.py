@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from database import migrate
 from database.migrate import connect, initialize
 
 
@@ -46,6 +47,30 @@ def test_second_initialize_keeps_existing_data(tmp_path: Path) -> None:
     conn.close()
 
 
+def test_new_required_service_reaches_an_existing_database(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A service appended to REQUIRED_SERVICES must appear on the next
+    initialize call, without editing or re-running schema.sql."""
+    conn = connect(tmp_path / "test.db")
+    initialize(conn)
+
+    monkeypatch.setattr(
+        migrate,
+        "REQUIRED_SERVICES",
+        [*migrate.REQUIRED_SERVICES, "PT"],
+    )
+
+    assert initialize(conn) is False
+
+    names = {row[0] for row in conn.execute("SELECT NAME FROM SERVICES")}
+    assert "PT" in names
+    assert len(names) == 5
+
+    conn.close()
+
+
 def test_foreign_keys_are_enforced(db: sqlite3.Connection) -> None:
     """connect() must switch the per connection foreign key pragma on."""
     assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
@@ -60,17 +85,20 @@ def test_foreign_keys_are_enforced(db: sqlite3.Connection) -> None:
 def test_schema_constraints_hold_through_the_runner(db: sqlite3.Connection) -> None:
     """The rules written in schema.sql must survive the runner path."""
     db.execute("INSERT INTO CLIENTS (NAME, FOLDER_PATH) VALUES ('Alpha', '/c/Alpha')")
-    db.execute("INSERT INTO SERVICES (NAME) VALUES ('GSTR-3B')")
+    # Services come from initialization now, look one up instead of inserting.
+    service = db.execute("SELECT ID FROM SERVICES WHERE NAME = 'GSTR-3B'").fetchone()[0]
     db.execute("INSERT INTO PERIODS (YEAR, MONTH) VALUES (2026, 8)")
     db.execute(
         "INSERT INTO TASKS (CLIENT_ID, SERVICE_ID, PERIOD_YEAR, PERIOD_MONTH)"
-        " VALUES (1, 1, 2026, 8)"
+        " VALUES (1, ?, 2026, 8)",
+        (service,),
     )
 
     with pytest.raises(sqlite3.IntegrityError):
         db.execute(
             "INSERT INTO TASKS (CLIENT_ID, SERVICE_ID, PERIOD_YEAR, PERIOD_MONTH)"
-            " VALUES (1, 1, 2026, 8)"
+            " VALUES (1, ?, 2026, 8)",
+            (service,),
         )
 
     with pytest.raises(sqlite3.IntegrityError):

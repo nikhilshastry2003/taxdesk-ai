@@ -97,6 +97,29 @@ venv/bin/pytest                      # the four database tests
 The same logbook accepts numbered migration files later, schema
 changes become new files, never edits to applied ones.
 
+## Required services live in the runner
+
+Three kinds of content, three homes. Structure lives in `schema.sql`.
+Required reference data, the four filing types the product cannot run
+without, lives as a REQUIRED_SERVICES list in `migrate.py`, ensured
+with INSERT OR IGNORE on every initialize call. Fake development data
+lives in the seed.
+
+Why not in schema.sql, that file is an applied migration, sealed once
+a database has run it, so an edit there never reaches existing
+databases. A name appended to the list reaches every database on its
+next initialize call, idempotently. The development seed only invents
+fake things, clients, subscriptions, one month, generated tasks.
+
+```bash
+python3 -m database.seed             # fill a development database
+```
+
+The seed is rerunnable, every write is INSERT OR IGNORE or a
+deterministic UPDATE, and its generation query is the same shape the
+app will use, one task per active subscription, duplicates absorbed
+by the UNIQUE rule on TASKS.
+
 ## Next
 
-Seed data for development, then the onboarding pages.
+The onboarding pages, and the settings discussion before them.

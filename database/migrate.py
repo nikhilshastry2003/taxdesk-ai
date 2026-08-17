@@ -16,6 +16,12 @@ DATABASE_DIR = Path(__file__).resolve().parent
 SCHEMA_PATH = DATABASE_DIR / "schema.sql"
 DEFAULT_DB_PATH = DATABASE_DIR / "taxdesk.db"
 
+# Required reference data, not structure and not fake seed data. The
+# product is meaningless without these filing types. Ensured on every
+# initialize call, so adding a name here reaches databases that were
+# initialized before it existed, without touching schema.sql.
+REQUIRED_SERVICES = ["GSTR-3B", "GSTR-1", "EPF", "ESI"]
+
 
 def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     """Open the database, creating the file when it does not exist.
@@ -33,11 +39,13 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
 
 
 def initialize(conn: sqlite3.Connection) -> bool:
-    """Apply schema.sql exactly once for the lifetime of a database.
+    """Apply schema.sql exactly once, then ensure required services.
 
     In: an open connection from connect().
     Out: True when the schema was applied by this call, False when a
-    previous run already had. Existing data is never touched.
+    previous run already had. Existing data is never touched, and the
+    required services are ensured on every call, so new entries in
+    REQUIRED_SERVICES reach already initialized databases too.
     """
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_applied ("
@@ -50,18 +58,26 @@ def initialize(conn: sqlite3.Connection) -> bool:
         "SELECT 1 FROM schema_applied WHERE filename = ?",
         (SCHEMA_PATH.name,),
     ).fetchone()
-    if already_applied:
-        return False
 
-    # Apply then record inside one commit, so a crash between the two
-    # can never leave the database lying about itself.
-    conn.executescript(SCHEMA_PATH.read_text())
-    conn.execute(
-        "INSERT INTO schema_applied (filename) VALUES (?)",
-        (SCHEMA_PATH.name,),
-    )
+    applied = False
+    if not already_applied:
+        # Apply then record inside one commit, so a crash between the
+        # two can never leave the database lying about itself.
+        conn.executescript(SCHEMA_PATH.read_text())
+        conn.execute(
+            "INSERT INTO schema_applied (filename) VALUES (?)",
+            (SCHEMA_PATH.name,),
+        )
+        applied = True
+
+    for name in REQUIRED_SERVICES:
+        conn.execute(
+            "INSERT OR IGNORE INTO SERVICES (NAME) VALUES (?)",
+            (name,),
+        )
     conn.commit()
-    return True
+
+    return applied
 
 
 if __name__ == "__main__":
