@@ -97,13 +97,19 @@ venv/bin/pytest                      # the four database tests
 The same logbook accepts numbered migration files later, schema
 changes become new files, never edits to applied ones.
 
-## Services are initialization, not seed
+## Required services live in the runner
 
-The four filing types are inserted by `schema.sql` itself. A real
-database with zero services could do nothing, so they are structure
-pretending to be data. Renaming or adding a service later is a data
-operation, no schema change. The development seed only invents fake
-things, clients, subscriptions, one month, generated tasks.
+Three kinds of content, three homes. Structure lives in `schema.sql`.
+Required reference data, the four filing types the product cannot run
+without, lives as a REQUIRED_SERVICES list in `migrate.py`, ensured
+with INSERT OR IGNORE on every initialize call. Fake development data
+lives in the seed.
+
+Why not in schema.sql, that file is an applied migration, sealed once
+a database has run it, so an edit there never reaches existing
+databases. A name appended to the list reaches every database on its
+next initialize call, idempotently. The development seed only invents
+fake things, clients, subscriptions, one month, generated tasks.
 
 ```bash
 python3 -m database.seed             # fill a development database
