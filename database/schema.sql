@@ -59,12 +59,3 @@ CREATE TABLE documents (
     path TEXT NOT NULL,
     FOREIGN KEY (client_id) REFERENCES CLIENTS(ID)
 );
-
--- The four filing types are part of initialization, not seed data.
--- The product is meaningless without them, a fresh real database with
--- zero services could do nothing. Renames or additions later are data
--- operations and never require touching structure.
-INSERT INTO SERVICES (NAME) VALUES ('GSTR-3B');
-INSERT INTO SERVICES (NAME) VALUES ('GSTR-1');
-INSERT INTO SERVICES (NAME) VALUES ('EPF');
-INSERT INTO SERVICES (NAME) VALUES ('ESI');

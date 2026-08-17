@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from database import migrate
 from database.migrate import connect, initialize
 
 
@@ -42,6 +43,30 @@ def test_second_initialize_keeps_existing_data(tmp_path: Path) -> None:
     assert initialize(conn) is False
     count = conn.execute("SELECT COUNT(*) FROM CLIENTS").fetchone()[0]
     assert count == 1
+
+    conn.close()
+
+
+def test_new_required_service_reaches_an_existing_database(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A service appended to REQUIRED_SERVICES must appear on the next
+    initialize call, without editing or re-running schema.sql."""
+    conn = connect(tmp_path / "test.db")
+    initialize(conn)
+
+    monkeypatch.setattr(
+        migrate,
+        "REQUIRED_SERVICES",
+        [*migrate.REQUIRED_SERVICES, "PT"],
+    )
+
+    assert initialize(conn) is False
+
+    names = {row[0] for row in conn.execute("SELECT NAME FROM SERVICES")}
+    assert "PT" in names
+    assert len(names) == 5
 
     conn.close()
 

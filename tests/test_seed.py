@@ -78,21 +78,29 @@ def test_generation_skips_inactive_subscriptions(db: sqlite3.Connection) -> None
     assert row[0] == 0
 
 
+def snapshot(conn: sqlite3.Connection) -> dict[str, list[tuple]]:
+    """Capture the complete rows of every seeded table.
+
+    In: an open connection.
+    Out: a dict of table name to all of its rows, deterministically
+    ordered, so two snapshots compare as whole database states.
+    """
+    tables = ("CLIENTS", "SERVICES", "CLIENT_SERVICES", "PERIODS", "TASKS")
+    return {
+        table: conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2").fetchall()
+        for table in tables
+    }
+
+
 def test_second_seed_run_changes_nothing(db: sqlite3.Connection) -> None:
-    """Rerunning the whole seed must leave identical row counts."""
+    """Rerunning the whole seed must leave the database state byte
+    identical, every value of every row, not merely the row counts."""
     run_seed(db)
-    before = {
-        table: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        for table in ("CLIENTS", "CLIENT_SERVICES", "PERIODS", "TASKS")
-    }
+    before = snapshot(db)
 
     run_seed(db)
-    after = {
-        table: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-        for table in ("CLIENTS", "CLIENT_SERVICES", "PERIODS", "TASKS")
-    }
 
-    assert before == after
+    assert snapshot(db) == before
 
 
 def test_sample_statuses_present(db: sqlite3.Connection) -> None:

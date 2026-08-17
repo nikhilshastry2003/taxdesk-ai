@@ -25,6 +25,10 @@ SEED_CLIENTS: list[tuple[str, str, list[str]]] = [
 
 SEED_PERIOD = (2026, 8)
 
+# Fixed on purpose, seed data is openly fake and must be deterministic,
+# running the seed twice has to produce byte identical database state.
+SEED_COMPLETED_AT = "2026-08-05 10:00:00"
+
 
 def service_id(conn: sqlite3.Connection, name: str) -> int:
     """Look up a service's id by its name.
@@ -102,9 +106,10 @@ def mark_sample_statuses(conn: sqlite3.Connection) -> None:
     """
     conn.execute(
         "UPDATE TASKS SET STATUS = 'done',"
-        " COMPLETED_AT = datetime('now'), COMPLETION_METHOD = 'manual'"
+        " COMPLETED_AT = ?, COMPLETION_METHOD = 'manual'"
         " WHERE CLIENT_ID = (SELECT ID FROM CLIENTS WHERE NAME = 'Aster Traders')"
         " AND SERVICE_ID = (SELECT ID FROM SERVICES WHERE NAME = 'GSTR-3B')",
+        (SEED_COMPLETED_AT,),
     )
     conn.execute(
         "UPDATE TASKS SET STATUS = 'not_applicable'"
