@@ -70,3 +70,40 @@ How it works: three kinds of content, three homes. Structure in
 seed. The seed inserts five clients, twelve subscriptions with one
 switched off, one month, and generates tasks with the same INSERT OR
 IGNORE shape the app will later use.
+
+---
+
+## PR 20, numbered migrations and the settings table
+
+Purpose: give schema changes a future, and give onboarding the one
+configuration value it needs, somewhere to keep the root folder.
+
+What changed: `schema.sql` moved to
+`database/migrations/001_schema.sql`, the runner applies every
+pending numbered file in order, `002_settings.sql` adds a single row
+SETTINGS table, tests for both.
+
+Why this way: a generic key value settings table was proposed and
+rejected on review, no evidence demanded it. Exactly one
+configuration value exists in the product brief, so the table is one
+typed row, ID checked to 1 so a second row is impossible, ROOT_FOLDER
+NOT NULL so it can never be saved empty. A future value is a
+migration adding a column, and migrations are now cheap by
+construction. Renaming schema.sql was done now because zero real
+databases exist, the only moment such a rename is free.
+
+How it works: the runner reads the logbook, applies each unrecorded
+file from `database/migrations/` in filename order, then ensures
+required services. No SETTINGS row means the app is not configured,
+onboarding creates the row when the practitioner picks the root
+folder.
+
+Review catch, transaction safety. The first version claimed one
+commit protected each migration and its record, but executescript
+commits on its own, proven by probe, so a crash between apply and
+record could leave a migration applied but unrecorded, and the rerun
+would crash into existing tables. The fix wraps each file and its
+record in one real SQLite transaction, BEGIN and COMMIT carried
+inside the executed script, rollback on failure, with a test that
+breaks a migration halfway and proves neither its tables nor its
+record survive.

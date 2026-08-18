@@ -28,7 +28,15 @@ def test_fresh_database_gets_all_tables(db: sqlite3.Connection) -> None:
     rows = db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
     names = {row[0] for row in rows}
 
-    expected = {"CLIENTS", "SERVICES", "CLIENT_SERVICES", "PERIODS", "TASKS", "documents"}
+    expected = {
+        "CLIENTS",
+        "SERVICES",
+        "CLIENT_SERVICES",
+        "PERIODS",
+        "TASKS",
+        "documents",
+        "SETTINGS",
+    }
     assert expected <= names
 
 
@@ -44,6 +52,73 @@ def test_second_initialize_keeps_existing_data(tmp_path: Path) -> None:
     count = conn.execute("SELECT COUNT(*) FROM CLIENTS").fetchone()[0]
     assert count == 1
 
+    conn.close()
+
+
+def test_settings_allows_exactly_one_row(db: sqlite3.Connection) -> None:
+    """The CHECK on ID must make a second configuration row impossible,
+    and the root folder must never be saved empty."""
+    db.execute("INSERT INTO SETTINGS (ID, ROOT_FOLDER) VALUES (1, '/clients')")
+
+    with pytest.raises(sqlite3.IntegrityError):
+        db.execute("INSERT INTO SETTINGS (ID, ROOT_FOLDER) VALUES (2, '/other')")
+
+    with pytest.raises(sqlite3.IntegrityError):
+        db.execute("UPDATE SETTINGS SET ROOT_FOLDER = NULL WHERE ID = 1")
+
+
+def test_migrations_recorded_in_order(tmp_path: Path) -> None:
+    """A fresh database must record both migration files, and a second
+    initialize call must find nothing pending."""
+    conn = connect(tmp_path / "test.db")
+
+    assert initialize(conn) is True
+    recorded = [
+        row[0]
+        for row in conn.execute("SELECT filename FROM schema_applied ORDER BY filename")
+    ]
+    assert recorded == ["001_schema.sql", "002_settings.sql"]
+
+    assert initialize(conn) is False
+    conn.close()
+
+
+def test_failed_migration_leaves_no_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A migration failing halfway must roll back completely, neither
+    its tables nor its logbook record may survive, so the rerun starts
+    clean instead of crashing into half applied structure."""
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    (migrations / "001_good.sql").write_text(
+        "CREATE TABLE GOOD (X INTEGER);"
+    )
+    (migrations / "002_broken.sql").write_text(
+        "CREATE TABLE PARTIAL (X INTEGER);"
+        " INSERT INTO NO_SUCH_TABLE VALUES (1);"
+    )
+    monkeypatch.setattr(migrate, "MIGRATIONS_DIR", migrations)
+
+    conn = connect(tmp_path / "test.db")
+    with pytest.raises(sqlite3.OperationalError):
+        initialize(conn)
+
+    tables = {
+        row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+    assert "GOOD" in tables
+    assert "PARTIAL" not in tables
+
+    recorded = [
+        row[0] for row in conn.execute("SELECT filename FROM schema_applied")
+    ]
+    assert recorded == ["001_good.sql"]
+
+    # The connection must be usable afterwards, nothing left open.
+    assert conn.in_transaction is False
     conn.close()
 
 

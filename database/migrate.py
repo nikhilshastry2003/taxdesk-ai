@@ -1,19 +1,22 @@
-"""Initialize the TaxDesk database from database/schema.sql.
+"""Initialize the TaxDesk database from database/migrations/*.sql.
 
 Usage:
     python3 database/migrate.py [path/to/database.db]
 
-Safe to run any number of times. An existing database is never
-recreated or deleted, the runner records what it has applied and
-skips it on every later run.
+Migrations are numbered files applied in filename order, each exactly
+once per database. Safe to run any number of times. An existing
+database is never recreated or deleted, the runner records what it
+has applied and skips it on every later run. Applied files are
+frozen, a schema change is always a new file.
 """
 
+import re
 import sqlite3
 import sys
 from pathlib import Path
 
 DATABASE_DIR = Path(__file__).resolve().parent
-SCHEMA_PATH = DATABASE_DIR / "schema.sql"
+MIGRATIONS_DIR = DATABASE_DIR / "migrations"
 DEFAULT_DB_PATH = DATABASE_DIR / "taxdesk.db"
 
 # Required reference data, not structure and not fake seed data. The
@@ -38,14 +41,53 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def apply_one(conn: sqlite3.Connection, migration: Path) -> None:
+    """Apply a single migration file and record it, atomically.
+
+    In: an open connection and the path of one .sql migration file.
+    Out: nothing. Either the migration AND its logbook record are both
+    committed, or neither is.
+
+    executescript() commits on its own, proven by test, so driver level
+    commit handling cannot make the pair atomic. Instead the script
+    itself carries BEGIN and COMMIT, one real SQLite transaction wraps
+    the migration and its record together. Migration files must not
+    manage transactions themselves.
+    """
+    # The filename is spliced into the script because placeholders do
+    # not exist inside executescript. Names come from our own repo
+    # directory, the allowlist check is defense in depth.
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", migration.name):
+        raise ValueError(f"unsafe migration filename: {migration.name}")
+
+    body = migration.read_text().strip()
+    if not body.endswith(";"):
+        body += ";"
+
+    script = (
+        "BEGIN;\n"
+        f"{body}\n"
+        f"INSERT INTO schema_applied (filename) VALUES ('{migration.name}');\n"
+        "COMMIT;"
+    )
+
+    try:
+        conn.executescript(script)
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+
+
 def initialize(conn: sqlite3.Connection) -> bool:
-    """Apply schema.sql exactly once, then ensure required services.
+    """Apply pending migrations in order, then ensure required services.
 
     In: an open connection from connect().
-    Out: True when the schema was applied by this call, False when a
-    previous run already had. Existing data is never touched, and the
-    required services are ensured on every call, so new entries in
-    REQUIRED_SERVICES reach already initialized databases too.
+    Out: True when at least one migration was applied by this call,
+    False when the database was already current. Existing data is
+    never touched, and the required services are ensured on every
+    call, so new entries in REQUIRED_SERVICES reach already
+    initialized databases too.
     """
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_applied ("
@@ -54,20 +96,17 @@ def initialize(conn: sqlite3.Connection) -> bool:
         ")"
     )
 
-    already_applied = conn.execute(
-        "SELECT 1 FROM schema_applied WHERE filename = ?",
-        (SCHEMA_PATH.name,),
-    ).fetchone()
+    already_applied = {
+        row[0]
+        for row in conn.execute("SELECT filename FROM schema_applied")
+    }
 
     applied = False
-    if not already_applied:
-        # Apply then record inside one commit, so a crash between the
-        # two can never leave the database lying about itself.
-        conn.executescript(SCHEMA_PATH.read_text())
-        conn.execute(
-            "INSERT INTO schema_applied (filename) VALUES (?)",
-            (SCHEMA_PATH.name,),
-        )
+    for migration in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        if migration.name in already_applied:
+            continue
+
+        apply_one(conn, migration)
         applied = True
 
     for name in REQUIRED_SERVICES:
