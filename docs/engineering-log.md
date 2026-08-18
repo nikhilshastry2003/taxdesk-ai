@@ -93,7 +93,17 @@ construction. Renaming schema.sql was done now because zero real
 databases exist, the only moment such a rename is free.
 
 How it works: the runner reads the logbook, applies each unrecorded
-file from `database/migrations/` in filename order, records it in the
-same commit per file, then ensures required services. No SETTINGS row
-means the app is not configured, onboarding creates the row when the
-practitioner picks the root folder.
+file from `database/migrations/` in filename order, then ensures
+required services. No SETTINGS row means the app is not configured,
+onboarding creates the row when the practitioner picks the root
+folder.
+
+Review catch, transaction safety. The first version claimed one
+commit protected each migration and its record, but executescript
+commits on its own, proven by probe, so a crash between apply and
+record could leave a migration applied but unrecorded, and the rerun
+would crash into existing tables. The fix wraps each file and its
+record in one real SQLite transaction, BEGIN and COMMIT carried
+inside the executed script, rollback on failure, with a test that
+breaks a migration halfway and proves neither its tables nor its
+record survive.

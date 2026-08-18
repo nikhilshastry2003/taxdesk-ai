@@ -89,11 +89,14 @@ engine, not by code discipline.
   no caller can forget the per connection pragma.
 - initialize(): applies every pending file from
   `database/migrations/` in filename order, exactly once each per
-  database. The schema_applied logbook records what has run, apply
-  and record share one commit per file, so a crash can never leave
-  the database lying about itself. Existing data is never recreated
-  or deleted, applied files are frozen, a schema change is always a
-  new numbered file.
+  database. Each file and its logbook record are wrapped in one real
+  SQLite transaction, BEGIN and COMMIT carried inside the executed
+  script, because executescript commits on its own and driver level
+  commits cannot make the pair atomic. A failure mid file rolls back
+  completely, tables and record together, proven by test. Existing
+  data is never recreated or deleted, applied files are frozen, a
+  schema change is always a new numbered file, and migration files
+  must not manage transactions themselves.
 
 ```bash
 python3 database/migrate.py          # database/taxdesk.db

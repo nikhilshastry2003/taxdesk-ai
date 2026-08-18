@@ -83,6 +83,45 @@ def test_migrations_recorded_in_order(tmp_path: Path) -> None:
     conn.close()
 
 
+def test_failed_migration_leaves_no_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A migration failing halfway must roll back completely, neither
+    its tables nor its logbook record may survive, so the rerun starts
+    clean instead of crashing into half applied structure."""
+    migrations = tmp_path / "migrations"
+    migrations.mkdir()
+    (migrations / "001_good.sql").write_text(
+        "CREATE TABLE GOOD (X INTEGER);"
+    )
+    (migrations / "002_broken.sql").write_text(
+        "CREATE TABLE PARTIAL (X INTEGER);"
+        " INSERT INTO NO_SUCH_TABLE VALUES (1);"
+    )
+    monkeypatch.setattr(migrate, "MIGRATIONS_DIR", migrations)
+
+    conn = connect(tmp_path / "test.db")
+    with pytest.raises(sqlite3.OperationalError):
+        initialize(conn)
+
+    tables = {
+        row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+    assert "GOOD" in tables
+    assert "PARTIAL" not in tables
+
+    recorded = [
+        row[0] for row in conn.execute("SELECT filename FROM schema_applied")
+    ]
+    assert recorded == ["001_good.sql"]
+
+    # The connection must be usable afterwards, nothing left open.
+    assert conn.in_transaction is False
+    conn.close()
+
+
 def test_new_required_service_reaches_an_existing_database(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

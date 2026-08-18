@@ -10,6 +10,7 @@ has applied and skips it on every later run. Applied files are
 frozen, a schema change is always a new file.
 """
 
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -40,6 +41,44 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     return conn
 
 
+def apply_one(conn: sqlite3.Connection, migration: Path) -> None:
+    """Apply a single migration file and record it, atomically.
+
+    In: an open connection and the path of one .sql migration file.
+    Out: nothing. Either the migration AND its logbook record are both
+    committed, or neither is.
+
+    executescript() commits on its own, proven by test, so driver level
+    commit handling cannot make the pair atomic. Instead the script
+    itself carries BEGIN and COMMIT, one real SQLite transaction wraps
+    the migration and its record together. Migration files must not
+    manage transactions themselves.
+    """
+    # The filename is spliced into the script because placeholders do
+    # not exist inside executescript. Names come from our own repo
+    # directory, the allowlist check is defense in depth.
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", migration.name):
+        raise ValueError(f"unsafe migration filename: {migration.name}")
+
+    body = migration.read_text().strip()
+    if not body.endswith(";"):
+        body += ";"
+
+    script = (
+        "BEGIN;\n"
+        f"{body}\n"
+        f"INSERT INTO schema_applied (filename) VALUES ('{migration.name}');\n"
+        "COMMIT;"
+    )
+
+    try:
+        conn.executescript(script)
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+
+
 def initialize(conn: sqlite3.Connection) -> bool:
     """Apply pending migrations in order, then ensure required services.
 
@@ -67,15 +106,7 @@ def initialize(conn: sqlite3.Connection) -> bool:
         if migration.name in already_applied:
             continue
 
-        # Apply then record inside one commit per file, so a crash
-        # between the two can never leave the database lying about
-        # itself, and a crash mid sequence loses nothing already done.
-        conn.executescript(migration.read_text())
-        conn.execute(
-            "INSERT INTO schema_applied (filename) VALUES (?)",
-            (migration.name,),
-        )
-        conn.commit()
+        apply_one(conn, migration)
         applied = True
 
     for name in REQUIRED_SERVICES:
