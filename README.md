@@ -100,7 +100,7 @@ explainable by its builder.
 
 ```bash
 python3 -m venv venv
-venv/bin/pip install fastapi uvicorn
+venv/bin/pip install fastapi uvicorn jinja2 python-multipart
 venv/bin/uvicorn app.main:app
 ```
 

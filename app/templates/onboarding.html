@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Onboarding</h2>
+
+{% if error %}
+<p><strong>{{ error }}</strong></p>
+{% endif %}
+
+<form method="post" action="/onboarding/root">
+  <label>
+    Root client folder:
+    <input type="text" name="root_folder" value="{{ root_folder or '' }}" size="60">
+  </label>
+  <button type="submit">Save root folder</button>
+</form>
+
+{% if root_folder and candidates is not none %}
+  {% if candidates %}
+  <h3>Select the folders that represent clients.</h3>
+  <p>
+    We found {{ candidates | length }} folder{{ '' if candidates | length == 1 else 's' }}.
+    {{ new_count }} new client folder{{ ' is' if new_count == 1 else 's are' }} selected.
+  </p>
+  <form method="post" action="/onboarding/confirm">
+    {% for candidate in candidates %}
+    <p>
+      <label>
+        <input type="checkbox" name="folders" value="{{ candidate['name'] }}"
+               {% if candidate['existing'] %}disabled{% else %}checked{% endif %}>
+        {{ candidate['name'] }}
+        {% if candidate['existing'] %}(already added){% endif %}
+      </label>
+    </p>
+    {% endfor %}
+    <button type="submit">{{ submit_label }}</button>
+  </form>
+  {% else %}
+  <p>No folders found inside the root. Create your client folders on
+  disk, then come back here, this page never creates folders itself.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

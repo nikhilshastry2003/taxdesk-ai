@@ -139,3 +139,42 @@ route, get_db yields a fresh connection from the app's database path,
 the route proves the spine with SELECT 1 and answers ok, teardown
 closes the connection. Startup applied pending migrations before the
 first request was ever accepted.
+
+---
+
+## PR 22, onboarding
+
+Purpose: the first real feature, the practitioner's folders become
+clients, with an explicit confirmation between discovery and
+creation.
+
+What changed: the onboarding page and its two POST routes,
+database/queries.py born with the four functions the flow needs, the
+first templates, jinja2 and python-multipart pinned, get_db grown to
+commit on success and roll back on failure now that writes exist,
+row access by name added to connect(), eleven new tests.
+
+Why this way: no automatic insertion ever, because in a system that
+never deletes, the moment before a row exists is the only cheap
+place for judgment. The filesystem is read only here, onboarding
+never touches the practitioner's real folders. The confirm handler
+trusts nothing from the browser, it rescans the real root at
+confirmation time and accepts only names that match actual
+subfolders, so traversal names die silently, and the UNIQUE rule on
+folder paths stays the final guard beneath it. Changing the root
+never rewrites existing client paths, path repair is a named future
+feature, not an onboarding side effect.
+
+How it works: GET shows the root form, then discovery, immediate
+subfolders only, files and hidden folders excluded, existing clients
+marked, new folders ticked, and a button that says exactly what it
+will do, Add N clients. POST root validates and upserts the single
+SETTINGS row, 303. POST confirm derives the valid set from disk,
+creates the intersection with the submission, 303. Reruns show
+already added and create nothing new, proven by test and by a live
+HTTP smoke run.
+
+One test side find, httpx2 silently treats a list of tuples as raw
+upload content instead of form fields, repeated fields must be sent
+as a dict with a list value. The app code was never wrong, the test
+encoding was.
