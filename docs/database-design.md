@@ -1,7 +1,7 @@
 # TaxDesk Database Design
 
-Source of truth is `database/schema.sql`. Brief notes on what it says
-and why.
+Source of truth is `database/migrations/`, numbered SQL files applied
+in order. Brief notes on what they say and why.
 
 ## Why a database
 
@@ -35,6 +35,10 @@ erDiagram
   real due days are confirmed
 - documents: file links owned by a client, task linkage deliberately
   unresolved
+- SETTINGS: the app's configuration as one typed row, a CHECK on ID
+  makes a second row impossible, no row means not configured yet.
+  Deliberately not a key value store, one known value exists, the
+  root folder, and a future value is a migration adding a column
 
 ## The key ideas, in one pass
 
@@ -66,7 +70,7 @@ Chosen: services as data, natural period key, text dates in ISO
 format, no indexes until a measured slow query exists.
 
 Deferred on purpose: the task to document link, document date fields
-for search by year, a settings table, and the real due day values.
+for search by year, and the real due day values.
 
 ## In one interview breath
 
@@ -83,19 +87,18 @@ engine, not by code discipline.
 - connect(): the only sanctioned way to open the database. It opens
   or creates `database/taxdesk.db` and switches foreign keys on, so
   no caller can forget the per connection pragma.
-- initialize(): applies `schema.sql` exactly once per database. A one
-  table logbook, schema_applied, records what has run, so a second
-  run finds the record and touches nothing. Existing data is never
-  recreated or deleted. Apply and record happen inside one commit, a
-  crash between them cannot leave the database lying about itself.
+- initialize(): applies every pending file from
+  `database/migrations/` in filename order, exactly once each per
+  database. The schema_applied logbook records what has run, apply
+  and record share one commit per file, so a crash can never leave
+  the database lying about itself. Existing data is never recreated
+  or deleted, applied files are frozen, a schema change is always a
+  new numbered file.
 
 ```bash
 python3 database/migrate.py          # database/taxdesk.db
-venv/bin/pytest                      # the four database tests
+venv/bin/pytest                      # the database test suite
 ```
-
-The same logbook accepts numbered migration files later, schema
-changes become new files, never edits to applied ones.
 
 ## Required services live in the runner
 
@@ -122,4 +125,4 @@ by the UNIQUE rule on TASKS.
 
 ## Next
 
-The onboarding pages, and the settings discussion before them.
+The web skeleton and the onboarding pages, the first thing to click.

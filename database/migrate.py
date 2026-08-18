@@ -1,11 +1,13 @@
-"""Initialize the TaxDesk database from database/schema.sql.
+"""Initialize the TaxDesk database from database/migrations/*.sql.
 
 Usage:
     python3 database/migrate.py [path/to/database.db]
 
-Safe to run any number of times. An existing database is never
-recreated or deleted, the runner records what it has applied and
-skips it on every later run.
+Migrations are numbered files applied in filename order, each exactly
+once per database. Safe to run any number of times. An existing
+database is never recreated or deleted, the runner records what it
+has applied and skips it on every later run. Applied files are
+frozen, a schema change is always a new file.
 """
 
 import sqlite3
@@ -13,7 +15,7 @@ import sys
 from pathlib import Path
 
 DATABASE_DIR = Path(__file__).resolve().parent
-SCHEMA_PATH = DATABASE_DIR / "schema.sql"
+MIGRATIONS_DIR = DATABASE_DIR / "migrations"
 DEFAULT_DB_PATH = DATABASE_DIR / "taxdesk.db"
 
 # Required reference data, not structure and not fake seed data. The
@@ -39,13 +41,14 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
 
 
 def initialize(conn: sqlite3.Connection) -> bool:
-    """Apply schema.sql exactly once, then ensure required services.
+    """Apply pending migrations in order, then ensure required services.
 
     In: an open connection from connect().
-    Out: True when the schema was applied by this call, False when a
-    previous run already had. Existing data is never touched, and the
-    required services are ensured on every call, so new entries in
-    REQUIRED_SERVICES reach already initialized databases too.
+    Out: True when at least one migration was applied by this call,
+    False when the database was already current. Existing data is
+    never touched, and the required services are ensured on every
+    call, so new entries in REQUIRED_SERVICES reach already
+    initialized databases too.
     """
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_applied ("
@@ -54,20 +57,25 @@ def initialize(conn: sqlite3.Connection) -> bool:
         ")"
     )
 
-    already_applied = conn.execute(
-        "SELECT 1 FROM schema_applied WHERE filename = ?",
-        (SCHEMA_PATH.name,),
-    ).fetchone()
+    already_applied = {
+        row[0]
+        for row in conn.execute("SELECT filename FROM schema_applied")
+    }
 
     applied = False
-    if not already_applied:
-        # Apply then record inside one commit, so a crash between the
-        # two can never leave the database lying about itself.
-        conn.executescript(SCHEMA_PATH.read_text())
+    for migration in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        if migration.name in already_applied:
+            continue
+
+        # Apply then record inside one commit per file, so a crash
+        # between the two can never leave the database lying about
+        # itself, and a crash mid sequence loses nothing already done.
+        conn.executescript(migration.read_text())
         conn.execute(
             "INSERT INTO schema_applied (filename) VALUES (?)",
-            (SCHEMA_PATH.name,),
+            (migration.name,),
         )
+        conn.commit()
         applied = True
 
     for name in REQUIRED_SERVICES:
