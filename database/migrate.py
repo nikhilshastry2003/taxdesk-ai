@@ -35,8 +35,14 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     SQLite keeps foreign keys off per connection unless asked, so this
     function is the only sanctioned way to open the database. Code
     that calls sqlite3.connect directly loses that enforcement.
+
+    Invariant: connections are short lived and scoped to one request
+    or one script run, never shared between requests. check_same_thread
+    is off because FastAPI may create and use a request's connection on
+    different thread pool threads, which is safe exactly because of
+    that invariant, one connection never serves two requests at once.
     """
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 

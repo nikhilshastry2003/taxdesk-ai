@@ -107,3 +107,35 @@ record in one real SQLite transaction, BEGIN and COMMIT carried
 inside the executed script, rollback on failure, with a test that
 breaks a migration halfway and proves neither its tables nor its
 record survive.
+
+---
+
+## PR 21, the application skeleton
+
+Purpose: establish the application layer's shape before any feature,
+so every future page has an obvious home and the browser reaches
+SQLite only through HTTP.
+
+What changed: the app package, main.py building the app around one
+database path, deps.py handing each request its own connection,
+routes/health.py as the only endpoint, six tests, fastapi and uvicorn
+pinned as the first runtime dependencies, httpx2 dev pinned for the
+test client.
+
+Why this way: create_app takes the database path as an argument, so
+tests build real apps over temp databases with no configuration
+system. Connections stay scoped to one request, opened from the
+single sanctioned connect(), which gained check_same_thread off
+because FastAPI may touch a request's connection from different
+thread pool threads, safe exactly because a connection never serves
+two requests. Startup runs migrations through lifespan and closes its
+connection, requests never share it. The health route returns exactly
+one field, ok, and a test enforces key for key equality so nothing
+can quietly join the response later. Binding stays 127.0.0.1 by
+uvicorn default, localhost IS the security boundary.
+
+How it works: browser to uvicorn on localhost, FastAPI matches the
+route, get_db yields a fresh connection from the app's database path,
+the route proves the spine with SELECT 1 and answers ok, teardown
+closes the connection. Startup applied pending migrations before the
+first request was ever accepted.

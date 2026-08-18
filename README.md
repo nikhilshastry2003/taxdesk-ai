@@ -96,6 +96,21 @@ Python, FastAPI, SQLite, Jinja2 templates, raw SQL with no ORM,
 pytest for tests. Chosen for transparency, every layer must be
 explainable by its builder.
 
+## Running locally
+
+```bash
+python3 -m venv venv
+venv/bin/pip install fastapi uvicorn
+venv/bin/uvicorn app.main:app
+```
+
+The app serves on http://127.0.0.1:8000, uvicorn's own default, and
+never pass a host flag, listening on localhost only IS the security
+boundary of this local first product. Migrations run automatically at
+startup. For development, `venv/bin/pip install httpx2 pytest` and
+`venv/bin/pytest` runs the suite, and `python3 -m database.seed`
+fills a development database.
+
 ## Build order
 
 1. Database schema and a migration runner
