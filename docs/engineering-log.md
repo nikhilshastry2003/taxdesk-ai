@@ -197,3 +197,32 @@ commit on success and rollback on failure added to get_db had no
 test proving the rollback half actually worked, closed with a
 synthetic failing route that writes then raises and asserts the
 write never persisted.
+
+---
+
+## Technical documentation
+
+Purpose: one document that teaches the whole project from
+fundamentals, so someone who can read code but has never met
+databases, HTTP, or transactions can understand every decision in
+this repository and defend it.
+
+What changed: `docs/technical-documentation.md` and a PDF built from
+it, 24 pages.
+
+Why this way: the three existing docs each answer a different
+question, the readme says what the product is, the database design
+note says how the data is shaped, this log says why each change
+happened. None of them teach the concepts underneath, so a reader
+without the background could follow the what and never the why. The
+new document fills exactly that gap and links the ideas to the lines
+of code that use them, rather than repeating the other documents.
+
+How it works: eleven parts, the product, the layered shape, a long
+fundamentals section defining every concept the code uses, the data
+model, the code file by file, runtime traces of startup and each
+route, the decisions with their rejected alternatives, what is not
+built and why, the honest limitations including the missing backup,
+how to run it, and a glossary. The PDF is generated from the markdown
+with a scratchpad build script, so the markdown stays the single
+source and the project environment gains no documentation tooling.
