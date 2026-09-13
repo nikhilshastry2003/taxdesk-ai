@@ -14,9 +14,10 @@
   <button type="submit">Save root folder</button>
 </form>
 
-{% if root_folder and candidates is not none %}
+{% if configured_root and candidates is not none %}
   {% if candidates %}
   <h3>Select the folders that represent clients.</h3>
+  <p>Current root: {{ configured_root }}</p>
   <p>
     We found {{ candidates | length }} folder{{ '' if candidates | length == 1 else 's' }}.
     {{ new_count }} new client folder{{ ' is' if new_count == 1 else 's are' }} selected.

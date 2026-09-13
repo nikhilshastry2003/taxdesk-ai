@@ -178,3 +178,22 @@ One test side find, httpx2 silently treats a list of tuples as raw
 upload content instead of form fields, repeated fields must be sent
 as a dict with a list value. The app code was never wrong, the test
 encoding was.
+
+Review catch, three findings before merge. First, the invalid root
+error path hardcoded candidates to None and echoed the old saved
+root instead of what was typed, so a single typo made a perfectly
+working configuration look like it had vanished, confirmed by live
+reproduction. Fixed by a shared discovery_context helper reused on
+both the happy and the error path, and a distinct configured_root
+template variable so the input box can show the attempted value
+while the discovery panel keeps showing the real, unaffected root,
+labeled so the two can never be confused. Second, a directory that
+stats as real but cannot be listed, a permission change or a
+removable drive dropping mid session, crashed candidate_folders with
+an unhandled PermissionError, confirmed with a real chmod 000
+directory. Fixed by treating a listing failure the same as a root
+that stopped existing, an empty result, never a crash. Third, the
+commit on success and rollback on failure added to get_db had no
+test proving the rollback half actually worked, closed with a
+synthetic failing route that writes then raises and asserts the
+write never persisted.

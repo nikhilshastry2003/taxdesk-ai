@@ -20,17 +20,51 @@ def candidate_folders(root_folder: str) -> list[Path]:
     In: the configured root folder path as a string.
     Out: the immediate child directories, hidden dot folders and
     plain files excluded, sorted by name. Empty when the root has
-    stopped existing.
+    stopped existing or cannot be read, a directory can stat as real
+    while a permission or a removable drive still blocks listing it.
     """
     root = Path(root_folder)
     if not root.is_dir():
         return []
 
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return []
+
     return sorted(
-        (child for child in root.iterdir()
+        (child for child in children
          if child.is_dir() and not child.name.startswith(".")),
         key=lambda child: child.name.lower(),
     )
+
+
+def discovery_context(conn: Connection, root_folder: str | None) -> dict:
+    """Build the candidate list and the button label for a root.
+
+    In: an open connection and the currently configured root, or None.
+    Out: candidates is None when no root is configured, otherwise one
+    entry per immediate subfolder, existing clients marked so they
+    render disabled and already ticked out of the count.
+    """
+    if root_folder is None:
+        return {"candidates": None, "new_count": 0, "submit_label": "Add 0 clients"}
+
+    existing_paths = {client["FOLDER_PATH"] for client in queries.list_clients(conn)}
+    candidates = [
+        {
+            "name": folder.name,
+            "existing": str(folder.resolve()) in existing_paths,
+        }
+        for folder in candidate_folders(root_folder)
+    ]
+    new_count = sum(1 for candidate in candidates if not candidate["existing"])
+
+    return {
+        "candidates": candidates,
+        "new_count": new_count,
+        "submit_label": f"Add {new_count} client{'' if new_count == 1 else 's'}",
+    }
 
 
 @router.get("/")
@@ -56,30 +90,14 @@ def onboarding_page(
     """
     root_folder = queries.get_root_folder(conn)
 
-    candidates = None
-    new_count = 0
-    if root_folder is not None:
-        existing_paths = {
-            client["FOLDER_PATH"] for client in queries.list_clients(conn)
-        }
-        candidates = [
-            {
-                "name": folder.name,
-                "existing": str(folder.resolve()) in existing_paths,
-            }
-            for folder in candidate_folders(root_folder)
-        ]
-        new_count = sum(1 for candidate in candidates if not candidate["existing"])
-
     return templates.TemplateResponse(
         request,
         "onboarding.html",
         {
             "root_folder": root_folder,
-            "candidates": candidates,
-            "new_count": new_count,
-            "submit_label": f"Add {new_count} client{'' if new_count == 1 else 's'}",
+            "configured_root": root_folder,
             "error": request.query_params.get("error"),
+            **discovery_context(conn, root_folder),
         },
     )
 
@@ -99,15 +117,18 @@ async def save_root(
     submitted = str(form.get("root_folder", "")).strip()
 
     if not submitted or not Path(submitted).is_dir():
+        # Echo back exactly what was typed, so a typo can be corrected
+        # in place, and keep showing the still valid saved root's own
+        # discovery panel, a rejected new path never touched SETTINGS.
+        configured_root = queries.get_root_folder(conn)
         return templates.TemplateResponse(
             request,
             "onboarding.html",
             {
-                "root_folder": queries.get_root_folder(conn),
-                "candidates": None,
-                "new_count": 0,
-                "submit_label": "Add 0 clients",
+                "root_folder": submitted,
+                "configured_root": configured_root,
                 "error": "That path does not exist or is not a folder. Nothing was saved.",
+                **discovery_context(conn, configured_root),
             },
             status_code=400,
         )

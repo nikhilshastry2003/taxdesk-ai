@@ -103,6 +103,24 @@ def test_invalid_root_rejected_and_settings_untouched(
     assert saved_root(client, tmp_path) is None
 
 
+def test_invalid_root_keeps_showing_the_still_valid_configuration(
+    client: TestClient, root: Path, tmp_path: Path
+) -> None:
+    """A rejected second path must echo what was typed and must not
+    hide the working root's own discovery panel, nothing was lost."""
+    client.post("/onboarding/root", data={"root_folder": str(root)})
+
+    bad_path = str(tmp_path / "nope")
+    response = client.post(
+        "/onboarding/root", data={"root_folder": bad_path}, follow_redirects=False
+    )
+
+    assert response.status_code == 400
+    assert f'value="{bad_path}"' in response.text
+    assert "Aster Traders" in response.text
+    assert saved_root(client, tmp_path) == str(root.resolve())
+
+
 def test_discovery_lists_immediate_folders_only(
     client: TestClient, root: Path
 ) -> None:
@@ -202,6 +220,24 @@ def test_empty_root_is_handled_cleanly(
     page = client.get("/onboarding").text
 
     assert "No folders found inside the root" in page
+
+
+def test_unreadable_root_does_not_crash_the_page(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """A folder that stats fine but cannot be listed, permissions, a
+    removable drive hiccup, must render, not raise a 500."""
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    client.post("/onboarding/root", data={"root_folder": str(locked)})
+
+    locked.chmod(0o000)
+    try:
+        response = client.get("/onboarding")
+    finally:
+        locked.chmod(0o755)
+
+    assert response.status_code == 200
 
 
 def test_changing_root_keeps_existing_client_paths(
