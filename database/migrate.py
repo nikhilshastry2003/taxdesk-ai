@@ -43,6 +43,9 @@ def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
     that invariant, one connection never serves two requests at once.
     """
     conn = sqlite3.connect(db_path, check_same_thread=False)
+    # Rows readable by column name everywhere, row["NAME"], while index
+    # access keeps working for existing callers.
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 

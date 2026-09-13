@@ -5,6 +5,7 @@ from pathlib import Path
 from sqlite3 import Connection
 
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
 
 from app.deps import get_db
@@ -74,6 +75,27 @@ def test_startup_initializes_a_fresh_database(tmp_path: Path) -> None:
     conn.close()
 
     assert recorded == ["001_schema.sql", "002_settings.sql"]
+
+
+def test_get_db_rolls_back_writes_when_the_route_raises(tmp_path: Path) -> None:
+    """A route that writes and then raises must leave nothing
+    committed, the actual guarantee get_db's docstring promises."""
+    application = create_app(tmp_path / "test.db")
+
+    @application.get("/boom")
+    def boom(conn: Connection = Depends(get_db)) -> None:
+        conn.execute("INSERT INTO SETTINGS (ID, ROOT_FOLDER) VALUES (1, 'x')")
+        raise RuntimeError("simulated failure after a write")
+
+    with TestClient(application, raise_server_exceptions=False) as test_client:
+        response = test_client.get("/boom")
+
+    assert response.status_code == 500
+
+    conn = connect(tmp_path / "test.db")
+    row = conn.execute("SELECT ROOT_FOLDER FROM SETTINGS WHERE ID = 1").fetchone()
+    conn.close()
+    assert row is None
 
 
 def test_unknown_route_returns_plain_404(client: TestClient) -> None:

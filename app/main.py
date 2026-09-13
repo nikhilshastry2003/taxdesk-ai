@@ -16,6 +16,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from app.routes.health import router as health_router
+from app.routes.onboarding import router as onboarding_router
 from database.migrate import DEFAULT_DB_PATH, connect, initialize
 
 
@@ -46,6 +47,7 @@ def create_app(db_path: Path = DEFAULT_DB_PATH) -> FastAPI:
     application = FastAPI(lifespan=lifespan)
     application.state.db_path = db_path
     application.include_router(health_router)
+    application.include_router(onboarding_router)
     return application
 
 
