@@ -208,7 +208,7 @@ databases, HTTP, or transactions can understand every decision in
 this repository and defend it.
 
 What changed: `docs/technical-documentation.md` and a PDF built from
-it, 24 pages.
+it, 30 pages.
 
 Why this way: the three existing docs each answer a different
 question, the readme says what the product is, the database design
@@ -220,7 +220,8 @@ of code that use them, rather than repeating the other documents.
 
 How it works: eleven parts, the product, the layered shape, a long
 fundamentals section defining every concept the code uses, the data
-model, the code file by file, runtime traces of startup and each
+model, every function explained with why and what and how including
+the lines that are not obvious, runtime traces of startup and each
 route, the decisions with their rejected alternatives, what is not
 built and why, the honest limitations including the missing backup,
 how to run it, and a glossary. The PDF is generated from the markdown

@@ -12,7 +12,7 @@ describing an intention as if it were real.
 
 How to read this. Parts 1 and 2 are the product and the shape of the
 system. Part 3 is the concept teaching, the longest part. Parts 4
-through 6 are the data model, the code file by file, and traces of
+through 6 are the data model, every function explained, and traces of
 what actually happens at runtime. Parts 7 through 9 are the decisions
 behind the code and the honest gaps. Part 10 is how to run it.
 
@@ -658,155 +658,536 @@ ask.
 
 ---
 
-# Part 5, The Code, File By File
+# Part 5, The Code, Function By Function
 
-Each entry says why the file exists, what is inside it, what it
-calls, and who calls it.
+This part walks every function in the project. Each one gets the same
+three questions, why it exists, what it does, and how it works, with
+the lines that are not obvious explained directly.
 
-## database/migrations/001_schema.sql and 002_settings.sql
+## 5.1 database/migrations/001_schema.sql and 002_settings.sql
 
-Why. The structure, in version control, so every machine builds the
-same database.
+Not functions, but the foundation everything else stands on. `001`
+creates the six original tables with every constraint. `002` adds
+`SETTINGS`. Both are frozen because real databases have applied them,
+so future changes are new numbered files. They are executed by the
+runner, never by hand.
 
-What. `001` creates the six original tables with every constraint.
-`002` adds `SETTINGS`. Both are frozen, since databases have applied
-them. Future changes are new numbered files.
+## 5.2 database/migrate.py
 
-Called by. The migration runner, never by hand.
+The bottom of the stack. It imports nothing from this project, only
+Python's standard library.
 
-## database/migrate.py
+### connect(db_path)
 
-Why. Migration files do nothing on their own, and connections must be
-opened correctly every time.
+```python
+def connect(db_path: Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+```
 
-What is inside.
+Why. Three settings must be true on every single connection, and a
+human will eventually forget one. Making this the only door means
+nobody can forget.
 
-- `REQUIRED_SERVICES`, the list of four filing type names
-- `connect(db_path)`, the only sanctioned way to open the database.
-  It creates the file if missing, turns foreign keys on, sets rows to
-  be readable by column name, and allows use across threads because a
-  connection is scoped to a single request
-- `apply_one(conn, migration)`, applies one migration file and
-  records it atomically, by wrapping both in `BEGIN` and `COMMIT`
-  inside the script it executes, with a rollback on failure
-- `initialize(conn)`, creates the `schema_applied` logbook if needed,
-  applies every pending migration in filename order, then ensures the
-  four required services exist using `INSERT OR IGNORE`
+What. Opens the database file, creating it if absent, and returns a
+connection ready to use.
 
-Calls. Only Python's standard library. This is the bottom of the
-stack.
+How, line by line.
 
-Called by. Application startup, the seed, every test, and a human
-running `python3 database/migrate.py`.
+- `sqlite3.connect(db_path)` opens the file. In SQLite, opening and
+  creating are the same act, so a missing file becomes a new empty
+  database
+- `check_same_thread=False` allows the connection to be used from a
+  different thread than the one that created it. This is normally
+  dangerous, and it is safe here only because of a rule the project
+  holds elsewhere, one connection serves exactly one request and is
+  then closed. FastAPI may run a request's code on different thread
+  pool threads, which is why the default setting breaks
+- `row_factory = sqlite3.Row` makes rows readable by column name,
+  `row["NAME"]`, instead of only by numeric position. Position based
+  access still works, so older code was not broken by adding this
+- the PRAGMA turns on foreign key enforcement, which SQLite leaves
+  off per connection
 
-## database/queries.py
+Called by. Everything, the application startup, the request
+dependency, the seed, every test.
 
-Why. One place owns every SQL statement the running application uses,
-so routes stay free of SQL and any query can be found in one file.
+### apply_one(conn, migration)
 
-What is inside, four functions today.
+Why. A migration and the record saying it ran must both happen or
+neither. If they separate, the database becomes wrong about itself,
+and the next run either reapplies a migration onto existing tables
+and crashes, or skips one that never actually ran.
 
-- `get_root_folder(conn)`, reads the configured root or None
-- `set_root_folder(conn, root_folder)`, inserts or updates the single
-  settings row using an upsert, an INSERT that turns into an UPDATE
-  on conflict
-- `list_clients(conn)`, every client ordered by name
-- `create_client(conn, name, folder_path)`, insert or ignore
+What. Applies one migration file and writes its logbook row, as a
+single atomic unit.
 
-Only what a shipped feature needs. Nothing speculative.
+How, and this is the subtle one.
 
-Called by. The route modules.
+```python
+script = (
+    "BEGIN;\n"
+    f"{body}\n"
+    f"INSERT INTO schema_applied (filename) VALUES ('{migration.name}');\n"
+    "COMMIT;"
+)
+conn.executescript(script)
+```
 
-## database/seed.py
+The obvious implementation would run the file, then insert the
+record, then call `.commit()`. That was the first version and it was
+wrong. `executescript` commits on its own before it runs, so the
+`.commit()` afterwards had nothing to do with the migration, and the
+two halves were never joined. The fix is to put `BEGIN` and `COMMIT`
+inside the script itself, making one real SQLite transaction that
+spans both. That is why migration files must never contain their own
+transaction statements, they would collide with these.
 
-Why. Pages cannot be built or tested against empty tables.
+Two supporting details.
 
-What. Five invented clients with mixed service subscriptions, one
-deliberately switched off, the August 2026 month, generated tasks,
-and two tasks flipped into interesting states. It prints a summary of
-pending counts as proof it worked.
+- the filename is checked against an allowlist pattern before being
+  put into the string, because placeholders do not work inside
+  `executescript`. The names come from the project's own directory,
+  so this is defense in depth rather than a live threat
+- the `try` block rolls back if anything raises, then re raises, so
+  the caller still sees the failure
 
-An important property. Every write is `INSERT OR IGNORE` or a
-deterministic UPDATE, and the completion timestamp is a fixed
-constant rather than the current time, so running the seed twice
-produces identical data. A test compares every row of every table
-before and after a second run.
+### initialize(conn)
 
-Called by. A developer, by hand, never by the application. The
-practitioner's real database is filled by onboarding, not by this.
+Why. Something must decide which migrations a given database still
+needs, and guarantee the required service rows exist.
 
-## app/main.py
+What. Brings any database up to date, and returns whether it changed
+anything.
 
-Why. Something must assemble the application from its parts.
+How, in four steps.
 
-What is inside.
+1. create the `schema_applied` logbook table if it does not exist.
+   `IF NOT EXISTS` means this is real work on a fresh database and a
+   no operation on every later run
+2. read the set of filenames already applied
+3. loop over `sorted(MIGRATIONS_DIR.glob("*.sql"))`, skipping any
+   name already in that set, and call `apply_one` for the rest. The
+   sort is why filenames are numbered, `001` before `002`, so order
+   is deterministic rather than whatever the filesystem returns
+4. ensure the four required services with `INSERT OR IGNORE`, outside
+   the migration loop, so this runs on every call. That placement is
+   deliberate. A fifth service name added to `REQUIRED_SERVICES`
+   later reaches databases that were initialized long ago, which
+   would be impossible if the rows lived inside a frozen migration
 
-- `lifespan`, runs once before the first request is served. It opens
-  a connection, runs `initialize` so pending migrations apply, and
-  closes that connection immediately. Requests never share it
-- `create_app(db_path)`, builds the FastAPI object around one
-  database path, stores that path on the application, and plugs in
-  the routers. Taking the path as an argument is what lets tests
-  build a real application over a temporary database with no
-  configuration system at all
-- `app = create_app()`, the production instance uvicorn loads
+Returns `True` if at least one migration was applied, `False` if the
+database was already current, which is what the command line block
+prints.
 
-## app/deps.py
+### the `__main__` block
 
-Why. Two things every route needs, kept in one place.
+Why. So a developer can run the runner directly.
 
-What is inside.
+How. Takes an optional database path from the command line, otherwise
+uses the default, connects, initializes, prints the outcome, and
+closes the connection in a `finally` so it closes even on failure.
 
-- `templates`, the Jinja2 engine pointed at `app/templates/`
-- `get_db(request)`, the connection dependency described in 3.19. It
-  opens a connection for one request, yields it, commits if the route
-  returned cleanly, rolls back if it raised, and always closes
+## 5.3 database/queries.py
 
-## app/routes/health.py
+Every SQL statement the running application uses. Four functions
+today, and only what a shipped feature needs.
 
-Why. A single endpoint that proves the whole spine works, from server
-to framework to database.
+### get_root_folder(conn)
 
-What. `GET /health` runs `SELECT 1` through the injected connection
-and returns exactly `{"status": "ok"}`. Nothing else. A test asserts
-key for key equality so no path, version, or internal detail can
-quietly join the response later.
+Why. Reading the configured root is the first thing the application
+does on almost every page.
 
-## app/routes/onboarding.py
+What and how. Selects `ROOT_FOLDER` from the single settings row and
+returns it, or `None` when no row exists. That `None` is meaningful,
+it is the application's definition of not configured yet, which is
+how onboarding knows to ask.
 
-Why. The practitioner's clients already exist as folders on disk. The
-application should learn them rather than demand retyping.
+### set_root_folder(conn, root_folder)
 
-What is inside.
+Why. Saving the root must work whether or not a value was saved
+before, without the caller having to check first.
 
-- `candidate_folders(root_folder)`, lists the immediate subfolders of
-  the root. No recursion, hidden dot folders skipped, plain files
-  skipped. Returns empty if the root has vanished or cannot be read
-- `discovery_context(conn, root_folder)`, builds the candidate list,
-  marks which folders are already clients, counts the new ones, and
-  produces the button label
-- `home()`, redirects `/` to `/onboarding`
-- `onboarding_page()`, renders the form and the discovery panel
-- `save_root()`, validates the submitted path is a real directory and
-  saves it, or re renders with an error and saves nothing
-- `confirm_clients()`, creates a client per confirmed folder, using
-  the trust boundary approach from 3.21
+How.
 
-The filesystem is read only throughout this module. It never creates,
-renames, moves, or deletes anything on disk.
+```sql
+INSERT INTO SETTINGS (ID, ROOT_FOLDER) VALUES (1, ?)
+ON CONFLICT(ID) DO UPDATE SET ROOT_FOLDER = excluded.ROOT_FOLDER
+```
 
-## app/templates/
+This is an upsert, an insert that becomes an update when the row
+already exists. `excluded` is SQLite's name for the row that was
+being inserted, so the clause reads as use the new value. One
+statement handles both the first save and every later change, so
+there is no branch in the calling code to get wrong.
 
-`base.html` is the shared page frame. `onboarding.html` extends it
-and holds the root form, the discovery checkboxes, and the state
-messages. Templates only display what a route hands them, they never
-call application code.
+### list_clients(conn)
 
-## tests/
+Why. Two callers need every client, the onboarding page to mark
+folders as already added, and any future client listing.
 
-Four files, 33 tests, described in 3.22. Every test builds its own
-temporary database, so tests never interfere with each other or with
-real data.
+How. A plain SELECT ordered by name, so the order is deterministic
+rather than insertion order.
+
+### create_client(conn, name, folder_path)
+
+Why. Onboarding creates clients in a loop, and a repeat submission or
+a double click must not become an error page.
+
+How. `INSERT OR IGNORE`, which turns a UNIQUE violation into a quiet
+no operation. The UNIQUE constraint on `FOLDER_PATH` is still the
+real guard, this just decides how the application reacts to it, which
+is calmly.
+
+## 5.4 database/seed.py
+
+A development tool. It fills a database with obviously fake data so
+pages can be built against something. It is never run on a real
+machine, and nothing in the application calls it.
+
+### the module constants
+
+`SEED_CLIENTS` holds five invented clients as tuples of name, folder
+path, and the services each subscribes to. `SEED_PERIOD` is August
+2026. `SEED_COMPLETED_AT` is a fixed timestamp string, and that fixed
+value matters, see `mark_sample_statuses` below.
+
+### service_id(conn, name)
+
+Why. The seed knows service names, but the tables store service ids.
+
+How. Selects the id for a name. It deliberately does not handle a
+missing name, because a missing service would mean initialization
+never ran, and failing loudly is the correct response to that.
+
+### seed_clients(conn)
+
+Why. Clients and their subscriptions are the base every other seeded
+row depends on.
+
+How. For each entry, insert the client with `INSERT OR IGNORE`, read
+back its id by folder path, then insert a `CLIENT_SERVICES` row per
+subscribed service, again with `INSERT OR IGNORE`. Afterwards one
+subscription is switched to `ACTIVE = 0` with a targeted UPDATE, so
+the inactive state exists in development data and generation can be
+seen skipping it.
+
+### seed_period_and_tasks(conn)
+
+Why. Tasks are what the eventual product is about, so development
+data needs them.
+
+How. Insert the period, then one statement generates every task.
+
+```sql
+INSERT OR IGNORE INTO TASKS (CLIENT_ID, SERVICE_ID, PERIOD_YEAR, PERIOD_MONTH)
+SELECT CLIENT_ID, SERVICE_ID, ?, ? FROM CLIENT_SERVICES WHERE ACTIVE = 1
+```
+
+This is an insert fed by a select, so the database does the whole job
+in one pass without any Python loop. `WHERE ACTIVE = 1` is what makes
+switched off subscriptions produce nothing. `INSERT OR IGNORE` plus
+the four column UNIQUE constraint is what makes running it twice
+harmless. This is the exact shape the real application will use when
+task generation is built.
+
+### mark_sample_statuses(conn)
+
+Why. Every screen state needs data to show, so development data
+should include a completed task and a not applicable one, not only
+pending ones.
+
+How. Two targeted UPDATEs, selecting their targets by client name and
+service name rather than by hardcoded ids, so they stay correct
+whatever ids the database assigned.
+
+The important detail. The completion timestamp is the fixed constant,
+not `datetime('now')`. The original version used the current time,
+which meant running the seed twice changed the data even though the
+row counts matched. That contradicted the promise that the seed is
+repeatable, and the test at the time was too weak to notice because
+it only compared counts.
+
+### print_summary(conn)
+
+Why. A script that finishes silently gives no evidence it worked.
+
+How. A GROUP BY over pending tasks joined to service names, printed
+as counts. It is proof of life, and it is also the first real use of
+the aggregation the dashboard will eventually need.
+
+### main()
+
+How. Resolves the database path from the command line or the default,
+connects, calls `initialize` first so a brand new file works, runs
+the three seeding steps, commits once, prints the summary, and closes
+in a `finally`.
+
+## 5.5 app/main.py
+
+### lifespan(application)
+
+Why. Migrations must be applied before the first request is served,
+so installing an update and opening the application is all anyone
+ever has to do.
+
+How. An async context manager wired into FastAPI's startup and
+shutdown. Everything before `yield` runs at startup, everything after
+would run at shutdown, and there is nothing after because there is
+nothing to clean up. It opens a connection, calls `initialize`, and
+closes that connection immediately in a `finally`. Requests never
+touch this connection, they each get their own.
+
+### create_app(db_path)
+
+Why. Tests need a real application pointed at a temporary database,
+and the alternative would be an environment variable configuration
+system nobody needs yet.
+
+How. Builds the `FastAPI` object with the lifespan attached, stores
+the database path on `application.state`, includes both routers, and
+returns it. Storing the path on the application is what lets
+`get_db` find it later through the request.
+
+### app = create_app()
+
+The production instance, built with the default path. This is the
+object the command `uvicorn app.main:app` loads, the `app` in that
+string is literally this variable.
+
+## 5.6 app/deps.py
+
+### templates
+
+The Jinja2 engine, pointed at `app/templates/`, created once at
+import rather than per request.
+
+### get_db(request)
+
+Why. The connection lifecycle is easy to get wrong and needs to be
+identical everywhere.
+
+```python
+def get_db(request: Request) -> Iterator[Connection]:
+    conn = connect(request.app.state.db_path)
+    try:
+        yield conn
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+```
+
+How, and the control flow here is worth reading slowly. This is a
+generator, not a normal function. FastAPI calls it, it runs down to
+`yield`, and pauses there, handing the connection to the route.
+
+- if the route returns normally, execution resumes just after the
+  `yield`, so `conn.commit()` runs and every write the route made
+  becomes permanent together
+- if the route raises, the exception is thrown back into the
+  generator at the `yield` line, the `except` catches it, rolls back
+  every write, and re raises so FastAPI still turns it into a 500
+- `finally` closes the connection either way
+
+Why `BaseException` rather than `Exception`. When a client
+disconnects mid request, Python closes the generator by throwing
+`GeneratorExit`, which is not an `Exception`. Catching the broader
+type means the rollback still happens, and re raising is required
+because a generator that swallows `GeneratorExit` raises a
+`RuntimeError`.
+
+This function is the reason routes contain no transaction code at
+all.
+
+## 5.7 app/routes/health.py
+
+### health(conn)
+
+Why. One endpoint that proves the entire spine works, uvicorn to
+FastAPI to the dependency to SQLite and back.
+
+How. Runs `SELECT 1` through the injected connection, discards the
+result, and returns the dictionary `{"status": "ok"}`. The query
+result is deliberately not exposed, and the response deliberately
+carries nothing else. A test asserts key for key equality so no
+version, path, or internal detail can quietly join it later.
+
+## 5.8 app/routes/onboarding.py
+
+The filesystem is read only in this entire module. Nothing here
+creates, renames, moves, or deletes anything on disk.
+
+### candidate_folders(root_folder)
+
+Why. Both the page and the confirm step need the same answer to one
+question, which folders inside the root are real candidates.
+
+How.
+
+```python
+root = Path(root_folder)
+if not root.is_dir():
+    return []
+
+try:
+    children = list(root.iterdir())
+except OSError:
+    return []
+
+return sorted(
+    (child for child in children
+     if child.is_dir() and not child.name.startswith(".")),
+    key=lambda child: child.name.lower(),
+)
+```
+
+- the early return handles a root that has stopped existing
+- the `try` around `iterdir` handles a subtler case found in review. A
+  directory can stat as perfectly real while still refusing to be
+  listed, because of a permission change or a removable drive that
+  dropped. Without this guard that raised a `PermissionError` all the
+  way to the browser as a 500
+- `child.is_dir()` drops plain files, and the `startswith(".")` test
+  drops hidden folders
+- there is no recursion anywhere, only immediate children
+- sorting by lowercased name makes the page order stable and human
+  friendly rather than filesystem order
+
+### discovery_context(conn, root_folder)
+
+Why. The page and the error path of `save_root` both need the same
+block of template values, and computing it twice invited them to
+drift apart, which is exactly what happened before review caught it.
+
+How. Returns `None` candidates when no root is configured. Otherwise
+it builds the set of folder paths already registered as clients, then
+one dictionary per candidate folder carrying its name and whether it
+already exists as a client. It counts the new ones and formats the
+button label, singular or plural, so the button can say `Add 1
+client` or `Add 12 clients` rather than something vague.
+
+The comparison uses `str(folder.resolve())` against stored paths,
+resolved absolute paths on both sides, so the match is reliable.
+
+### home()
+
+Why. Something must answer the bare URL.
+
+How. Returns a 302 redirect to `/onboarding`, the only page that
+exists. It takes no database connection because it needs none.
+
+### onboarding_page(request, conn)
+
+Why. The main screen, the root form plus discovery.
+
+How. Reads the configured root, then builds the template values. Note
+the two names, `root_folder` fills the text input, and
+`configured_root` gates and labels the discovery panel. On this happy
+path they are the same value. They exist separately because of
+`save_root` below, where they legitimately differ. The
+`**discovery_context(...)` merges the shared block in.
+
+### save_root(request, conn)
+
+Why. The root folder must be validated before it is stored, since
+every later scan depends on it.
+
+How. Reads the form, strips whitespace, and checks the path is a real
+directory. On success it stores the resolved absolute path and
+redirects with 303. On failure it re renders the page with a 400
+status and no write at all.
+
+The failure path is more careful than it looks, and it took a review
+to get right. It passes the submitted value as `root_folder`, so the
+practitioner sees exactly what they typed and can fix the typo in
+place, and it passes the still valid saved root as `configured_root`
+along with its real discovery panel, so a rejected new path does not
+make a working configuration appear to vanish. The earlier version
+blanked the panel and echoed the old value, which was confusing in
+both directions.
+
+This function is `async` because reading a form body is `await
+request.form()`, work that waits on the network.
+
+### confirm_clients(request, conn)
+
+Why. This is where rows are created, so this is where the trust
+boundary lives.
+
+How, and the order of operations is the whole point.
+
+```python
+actual_folders = {
+    folder.name: folder for folder in candidate_folders(root_folder)
+}
+
+form = await request.form()
+for name in form.getlist("folders"):
+    folder = actual_folders.get(str(name))
+    if folder is None:
+        continue
+    queries.create_client(conn, name=folder.name, folder_path=str(folder.resolve()))
+```
+
+The valid set is built first, from a fresh scan of the real disk, and
+the submitted names are then looked up inside it. A submitted value
+that is not a real immediate subfolder finds nothing and is skipped.
+That single design decision defeats a whole family of attacks at
+once, `../evil`, an absolute path to somewhere else, a name that
+never existed, without needing to predict any of them. A test submits
+exactly those three and proves no client is created.
+
+`form.getlist` is used rather than `form.get` because checkboxes
+sharing a name submit repeated values, and only `getlist` returns all
+of them.
+
+Nothing here deletes or updates. Existing clients are untouched, and
+`create_client` absorbs duplicates, so pressing the button twice is
+harmless.
+
+## 5.9 app/templates/
+
+`base.html` is the page frame, currently a title and a content block.
+`onboarding.html` extends it and holds the root form, the discovery
+checkboxes, and the state messages, empty root, no root configured,
+folders found, folders already added.
+
+One template detail worth knowing. An already added folder renders
+its checkbox as `disabled`, and a disabled checkbox is not submitted
+by the browser at all. So existing clients cannot be resubmitted even
+if someone tampers with the page, which is a second layer under the
+server side check.
+
+Templates never call application code. They display what a route
+hands them.
+
+## 5.10 tests/
+
+Four files, 33 tests. Every test builds its own temporary database in
+a temporary folder, so no test can affect another or touch real data.
+
+- `conftest` style fixtures appear in each file rather than a shared
+  one, since the suites need slightly different setups
+- `test_database.py`, 8 tests, migrations applying in order, reruns
+  doing nothing, the settings single row rule, foreign keys actually
+  enforced, and the rollback boundary where a migration breaks
+  halfway and must leave no trace
+- `test_seed.py`, 5 tests, the four services present after
+  initialization, the seeded row counts, generation skipping inactive
+  subscriptions, and a full state comparison proving a second seed
+  run changes nothing
+- `test_app.py`, 7 tests, health returning exactly the expected body,
+  startup applying migrations, the dependency override being used,
+  the rollback path, a plain 404, and a leak check on the health
+  response
+- `test_onboarding.py`, 13 tests, the whole flow including the
+  traversal attempt, the unreadable root, the empty root, and the
+  rule that changing the root never rewrites existing client paths
 
 ---
 
