@@ -208,7 +208,8 @@ databases, HTTP, or transactions can understand every decision in
 this repository and defend it.
 
 What changed: `docs/technical-documentation.md` and a PDF built from
-it, 30 pages.
+it, 104 pages, carrying the complete verbatim source of every file in
+the project with a line by line walkthrough.
 
 Why this way: the three existing docs each answer a different
 question, the readme says what the product is, the database design
@@ -220,10 +221,13 @@ of code that use them, rather than repeating the other documents.
 
 How it works: eleven parts, the product, the layered shape, a long
 fundamentals section defining every concept the code uses, the data
-model, every function explained with why and what and how including
-the lines that are not obvious, runtime traces of startup and each
-route, the decisions with their rejected alternatives, what is not
-built and why, the honest limitations including the missing backup,
-how to run it, and a glossary. The PDF is generated from the markdown
-with a scratchpad build script, so the markdown stays the single
-source and the project environment gains no documentation tooling.
+model, then the heart of the book, nine chapters quoting every source
+file in full, schema, migrations, queries, seed, app assembly, routes,
+templates, and both test suites, each function shown verbatim and
+explained line by line with its why and how. After that, runtime
+traces of startup and each route, the decisions with their rejected
+alternatives, what is not built and why, the honest limitations
+including the missing backup, how to run it, and a glossary. The PDF
+is generated from the markdown with a scratchpad build script, so the
+markdown stays the single source and the project environment gains no
+documentation tooling.
